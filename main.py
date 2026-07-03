@@ -1,760 +1,642 @@
-using System;
-using System.Collections.Generic;
-using System.Net.Http;
-using System.Text;
-using System.Threading.Tasks;
-using System.Text.Json;
+import os
+import sys
+import json
+import time
+import random
+import requests
+from colorama import init, Fore, Style
 
-namespace _3zFTool
-{
-    class Program
-    {
-        static string botToken = "";
-        static string selectedGuildId = "";
-        static Dictionary<string, string> guilds = new Dictionary<string, string>();
+init(autoreset=True)
 
-        static async Task Main(string[] args)
-        {
-            Console.OutputEncoding = Encoding.UTF8;
-            Console.Title = "3zF 🦇 | BY 3Z";
-            Console.WindowWidth = 90;
-            Console.WindowHeight = 45;
-
-            // Step 1: Enter Token
-            Console.Clear();
-            CenterLogo();
-            Console.WriteLine();
-            Console.ForegroundColor = ConsoleColor.Cyan;
-            CenterText("╔═══════════════════════════════════════════╗");
-            CenterText("║         ENTER BOT TOKEN                 ║");
-            CenterText("╚═══════════════════════════════════════════╝");
-            Console.ResetColor();
-            Console.WriteLine();
-            Console.ForegroundColor = ConsoleColor.Yellow;
-            CenterText("┌─────────────────────────────────────────┐");
-            CenterText("│  Paste your Bot Token and press Enter  │");
-            CenterText("└─────────────────────────────────────────┘");
-            Console.ResetColor();
-            Console.WriteLine();
-            Console.ForegroundColor = ConsoleColor.Green;
-            Console.Write(new string(' ', 35) + "➜ ");
-            Console.ForegroundColor = ConsoleColor.White;
-            botToken = Console.ReadLine();
-
-            // Step 2: Get Servers
-            await GetGuilds();
-
-            // Step 3: Select Server
-            await SelectGuild();
-
-            // Step 4: Show Main Menu
-            await MainMenu();
+class _3zFTool:
+    def __init__(self):
+        self.bot_token = ""
+        self.selected_guild_id = ""
+        self.guilds = {}
+        self.base_url = "https://discord.com/api/v9"
+        
+    def clear_screen(self):
+        os.system('cls' if os.name == 'nt' else 'clear')
+    
+    def center_text(self, text):
+        width = 90
+        padding = (width - len(text)) // 2
+        if padding < 0:
+            padding = 0
+        print(" " * padding + text)
+    
+    def center_logo(self):
+        logo = [
+            "██████╗░██████╗░",
+            "╚════██╗╚════██╗",
+            "░░███╔═╝░░███╔═╝",
+            "██╔══╝░░██╔══╝░░",
+            "███████╗███████╗",
+            "╚══════╝╚══════╝"
+        ]
+        print()
+        for line in logo:
+            print(Fore.MAGENTA + " " * 35 + line)
+        print()
+        self.center_text(Fore.YELLOW + "═══════════════════════════════════════════")
+        self.center_text(Fore.CYAN + "     3zF 🦇  TOOL v1.0 | BY 3Z")
+        self.center_text(Fore.YELLOW + "═══════════════════════════════════════════")
+        print()
+    
+    def print_success(self, msg):
+        self.center_text(Fore.GREEN + "✅ " + msg)
+    
+    def print_error(self, msg):
+        self.center_text(Fore.RED + "❌ " + msg)
+    
+    def print_info(self, msg):
+        self.center_text(Fore.CYAN + "ℹ️ " + msg)
+    
+    def print_working(self):
+        self.center_text(Fore.YELLOW + "⏳ WORKING... PLEASE WAIT")
+    
+    def get_multiple_inputs(self, prompt, done_word="done"):
+        items = []
+        print()
+        self.center_text(Fore.CYAN + f"📝 {prompt}")
+        self.center_text(Fore.CYAN + f"Type '{done_word}' when finished")
+        print()
+        
+        counter = 1
+        while True:
+            print(Fore.GREEN + " " * 35 + f"{counter}. ", end="")
+            user_input = input()
+            
+            if not user_input.strip():
+                continue
+            
+            if user_input.lower() == done_word.lower():
+                break
+            
+            items.append(user_input)
+            counter += 1
+        
+        return items
+    
+    def random_string(self, length):
+        chars = "abcdefghijklmnopqrstuvwxyz0123456789"
+        return ''.join(random.choice(chars) for _ in range(length))
+    
+    def get_token(self):
+        self.clear_screen()
+        self.center_logo()
+        print()
+        self.center_text(Fore.CYAN + "╔═══════════════════════════════════════════╗")
+        self.center_text(Fore.CYAN + "║         ENTER BOT TOKEN                 ║")
+        self.center_text(Fore.CYAN + "╚═══════════════════════════════════════════╝")
+        print()
+        self.center_text(Fore.YELLOW + "┌─────────────────────────────────────────┐")
+        self.center_text(Fore.YELLOW + "│  Paste your Bot Token and press Enter  │")
+        self.center_text(Fore.YELLOW + "└─────────────────────────────────────────┘")
+        print()
+        print(Fore.GREEN + " " * 35 + "➜ ", end="")
+        self.bot_token = input().strip()
+    
+    def get_guilds(self):
+        self.clear_screen()
+        self.center_logo()
+        print()
+        self.center_text(Fore.CYAN + "╔═══════════════════════════════════════════╗")
+        self.center_text(Fore.CYAN + "║        FETCHING SERVERS...              ║")
+        self.center_text(Fore.CYAN + "╚═══════════════════════════════════════════╝")
+        print()
+        
+        headers = {
+            "Authorization": f"Bot {self.bot_token}",
+            "User-Agent": "Mozilla/5.0"
         }
-
-        static async Task GetGuilds()
-        {
-            Console.Clear();
-            CenterLogo();
-            Console.WriteLine();
-            Console.ForegroundColor = ConsoleColor.Cyan;
-            CenterText("╔═══════════════════════════════════════════╗");
-            CenterText("║        FETCHING SERVERS...              ║");
-            CenterText("╚═══════════════════════════════════════════╝");
-            Console.ResetColor();
-            Console.WriteLine();
-
-            using (HttpClient client = new HttpClient())
-            {
-                client.DefaultRequestHeaders.Add("Authorization", $"Bot {botToken}");
-                client.DefaultRequestHeaders.Add("User-Agent", "Mozilla/5.0");
-
-                try
-                {
-                    var res = await client.GetAsync("https://discord.com/api/v9/users/@me/guilds");
-                    string body = await res.Content.ReadAsStringAsync();
-
-                    if (res.IsSuccessStatusCode)
-                    {
-                        var json = JsonDocument.Parse(body);
-                        var guildsArray = json.RootElement.EnumerateArray();
-
-                        int index = 1;
-                        guilds.Clear();
-
-                        Console.ForegroundColor = ConsoleColor.Magenta;
-                        CenterText("╔═══════════════════════════════════════════╗");
-                        CenterText("║         AVAILABLE SERVERS               ║");
-                        CenterText("╚═══════════════════════════════════════════╝");
-                        Console.ResetColor();
-                        Console.WriteLine();
-
-                        foreach (var guild in guildsArray)
-                        {
-                            string id = guild.GetProperty("id").GetString();
-                            string name = guild.GetProperty("name").GetString();
-                            guilds[index.ToString()] = id;
-                            
-                            Console.ForegroundColor = ConsoleColor.Green;
-                            CenterText($"[{index}] {name} (ID: {id})");
-                            Console.ResetColor();
-                            index++;
-                        }
-
-                        Console.WriteLine();
-                        Console.ForegroundColor = ConsoleColor.Yellow;
-                        CenterText("┌─────────────────────────────────────────┐");
-                        CenterText("│  Enter number to select server        │");
-                        CenterText("└─────────────────────────────────────────┘");
-                        Console.ResetColor();
-                        Console.WriteLine();
-                    }
-                    else
-                    {
-                        Console.ForegroundColor = ConsoleColor.Red;
-                        CenterText("❌ Failed to fetch servers! Invalid Token?");
-                        Console.ResetColor();
-                        Console.ReadKey();
-                        Environment.Exit(0);
-                    }
-                }
-                catch
-                {
-                    Console.ForegroundColor = ConsoleColor.Red;
-                    CenterText("❌ Error connecting to Discord API!");
-                    Console.ResetColor();
-                    Console.ReadKey();
-                    Environment.Exit(0);
-                }
-            }
-        }
-
-        static async Task SelectGuild()
-        {
-            while (true)
-            {
-                Console.ForegroundColor = ConsoleColor.Green;
-                Console.Write(new string(' ', 35) + "➜ Select Server: ");
-                Console.ForegroundColor = ConsoleColor.White;
-                string choice = Console.ReadLine();
-
-                if (guilds.ContainsKey(choice))
-                {
-                    selectedGuildId = guilds[choice];
-                    Console.Clear();
-                    CenterLogo();
-                    Console.ForegroundColor = ConsoleColor.Green;
-                    CenterText($"✅ Server Selected Successfully!");
-                    Console.ResetColor();
-                    Console.WriteLine();
-                    Console.ForegroundColor = ConsoleColor.Cyan;
-                    CenterText($"➜ Server ID: {selectedGuildId}");
-                    Console.ResetColor();
-                    Console.WriteLine();
-                    Console.ForegroundColor = ConsoleColor.Yellow;
-                    CenterText("Press any key to continue...");
-                    Console.ResetColor();
-                    Console.ReadKey();
-                    return;
-                }
-                else
-                {
-                    Console.ForegroundColor = ConsoleColor.Red;
-                    CenterText("❌ Invalid choice! Try again.");
-                    Console.ResetColor();
-                    Console.WriteLine();
-                }
-            }
-        }
-
-        static async Task MainMenu()
-        {
-            while (true)
-            {
-                Console.Clear();
-                CenterLogo();
+        
+        try:
+            response = requests.get(f"{self.base_url}/users/@me/guilds", headers=headers)
+            
+            if response.status_code == 200:
+                guilds_data = response.json()
+                self.guilds = {}
                 
-                Console.ForegroundColor = ConsoleColor.Cyan;
-                CenterText("╔═══════════════════════════════════════════╗");
-                CenterText("║           🚀 MAIN MENU                  ║");
-                CenterText("╚═══════════════════════════════════════════╝");
-                Console.ResetColor();
-                Console.WriteLine();
-
-                string[] menu = new string[]
-                {
-                    "  [1]  Create Rooms    انشاء رومات",
-                    "  [2]  Delete Rooms    حذف رومات",
-                    "  [3]  Delete Roles    حذف رتب",
-                    "  [4]  Ban User        باند",
-                    "  [5]  Kick User       طرد",
-                    "  [6]  Spam Rooms      سبام",
-                    "  [7]  Give Admin      رفع مشرف",
-                    "  [0]  Exit            خروج"
-                };
-
-                foreach (var item in menu)
-                {
-                    Console.ForegroundColor = ConsoleColor.Yellow;
-                    CenterText(item);
-                    Console.ResetColor();
-                }
-
-                Console.WriteLine();
-                Console.ForegroundColor = ConsoleColor.Green;
-                CenterText($"➜ Server ID: {selectedGuildId}");
-                Console.ResetColor();
-                Console.WriteLine();
-                Console.ForegroundColor = ConsoleColor.Cyan;
-                Console.Write(new string(' ', 35) + "➜ Choose Option: ");
-                Console.ForegroundColor = ConsoleColor.White;
-                string choice = Console.ReadLine();
-
-                switch (choice)
-                {
-                    case "1": await CreateRooms(); break;
-                    case "2": await DeleteRooms(); break;
-                    case "3": await DeleteRoles(); break;
-                    case "4": await BanUser(); break;
-                    case "5": await KickUser(); break;
-                    case "6": await SpamRooms(); break;
-                    case "7": await GiveAdmin(); break;
-                    case "0": return;
-                    default:
-                        Console.ForegroundColor = ConsoleColor.Red;
-                        CenterText("❌ Invalid option!");
-                        Console.ResetColor();
-                        System.Threading.Thread.Sleep(1000);
-                        break;
-                }
-            }
+                self.center_text(Fore.MAGENTA + "╔═══════════════════════════════════════════╗")
+                self.center_text(Fore.MAGENTA + "║         AVAILABLE SERVERS               ║")
+                self.center_text(Fore.MAGENTA + "╚═══════════════════════════════════════════╝")
+                print()
+                
+                for index, guild in enumerate(guilds_data, start=1):
+                    guild_id = guild["id"]
+                    guild_name = guild["name"]
+                    self.guilds[str(index)] = guild_id
+                    self.center_text(Fore.GREEN + f"[{index}] {guild_name} (ID: {guild_id})")
+                
+                print()
+                self.center_text(Fore.YELLOW + "┌─────────────────────────────────────────┐")
+                self.center_text(Fore.YELLOW + "│  Enter number to select server        │")
+                self.center_text(Fore.YELLOW + "└─────────────────────────────────────────┘")
+                print()
+            else:
+                self.print_error("Failed to fetch servers! Invalid Token?")
+                input()
+                sys.exit(0)
+        except Exception as e:
+            self.print_error(f"Error: {str(e)}")
+            input()
+            sys.exit(0)
+    
+    def select_guild(self):
+        while True:
+            print(Fore.GREEN + " " * 35 + "➜ Select Server: ", end="")
+            choice = input().strip()
+            
+            if choice in self.guilds:
+                self.selected_guild_id = self.guilds[choice]
+                self.clear_screen()
+                self.center_logo()
+                self.print_success("Server Selected Successfully!")
+                print()
+                self.print_info(f"Server ID: {self.selected_guild_id}")
+                print()
+                self.center_text(Fore.YELLOW + "Press any key to continue...")
+                input()
+                return
+            else:
+                self.print_error("Invalid choice! Try again.")
+                print()
+    
+    def main_menu(self):
+        while True:
+            self.clear_screen()
+            self.center_logo()
+            
+            self.center_text(Fore.CYAN + "╔═══════════════════════════════════════════╗")
+            self.center_text(Fore.CYAN + "║           🚀 MAIN MENU                  ║")
+            self.center_text(Fore.CYAN + "╚═══════════════════════════════════════════╝")
+            print()
+            
+            menu = [
+                "  [1]  Create Rooms    انشاء رومات",
+                "  [2]  Delete Rooms    حذف رومات",
+                "  [3]  Delete Roles    حذف رتب",
+                "  [4]  Ban User        باند",
+                "  [5]  Kick User       طرد",
+                "  [6]  Spam Rooms      سبام",
+                "  [7]  Give Admin      رفع مشرف",
+                "  [0]  Exit            خروج"
+            ]
+            
+            for item in menu:
+                self.center_text(Fore.YELLOW + item)
+            
+            print()
+            self.center_text(Fore.GREEN + f"➜ Server ID: {self.selected_guild_id}")
+            print()
+            print(Fore.CYAN + " " * 35 + "➜ Choose Option: ", end="")
+            choice = input().strip()
+            
+            if choice == "1":
+                self.create_rooms()
+            elif choice == "2":
+                self.delete_rooms()
+            elif choice == "3":
+                self.delete_roles()
+            elif choice == "4":
+                self.ban_user()
+            elif choice == "5":
+                self.kick_user()
+            elif choice == "6":
+                self.spam_rooms()
+            elif choice == "7":
+                self.give_admin()
+            elif choice == "0":
+                self.print_info("Goodbye!")
+                sys.exit(0)
+            else:
+                self.print_error("Invalid option!")
+                time.sleep(1)
+    
+    def create_rooms(self):
+        self.clear_screen()
+        self.center_logo()
+        self.center_text(Fore.GREEN + "╔═══════════════════════════════════════════╗")
+        self.center_text(Fore.GREEN + "║        CREATE ROOMS - انشاء رومات       ║")
+        self.center_text(Fore.GREEN + "╚═══════════════════════════════════════════╝")
+        
+        room_names = self.get_multiple_inputs("Enter room names (one per line):")
+        
+        if len(room_names) == 0:
+            self.print_error("No room names entered!")
+            input()
+            return
+        
+        print()
+        self.print_info(f"Creating {len(room_names)} rooms...")
+        print()
+        
+        headers = {
+            "Authorization": f"Bot {self.bot_token}",
+            "User-Agent": "Mozilla/5.0"
         }
-
-        static void CenterText(string text)
-        {
-            int padding = (Console.WindowWidth - text.Length) / 2;
-            if (padding < 0) padding = 0;
-            Console.WriteLine(new string(' ', padding) + text);
-        }
-
-        static void CenterLogo()
-        {
-            string[] logo = new string[]
-            {
-                @"██████╗░██████╗░",
-                @"╚════██╗╚════██╗",
-                @"░░███╔═╝░░███╔═╝",
-                @"██╔══╝░░██╔══╝░░",
-                @"███████╗███████╗",
-                @"╚══════╝╚══════╝"
-            };
-
-            Console.WriteLine("");
-            foreach (string line in logo)
-            {
-                Console.ForegroundColor = ConsoleColor.Magenta;
-                CenterText(line);
-                Console.ResetColor();
+        
+        success = 0
+        failed = 0
+        
+        for i, room_name in enumerate(room_names):
+            data = {
+                "name": room_name,
+                "type": 0
             }
-            Console.WriteLine("");
-            Console.ForegroundColor = ConsoleColor.Yellow;
-            CenterText("═══════════════════════════════════════════");
-            Console.ForegroundColor = ConsoleColor.Cyan;
-            CenterText("     3zF 🦇  TOOL v1.0 | BY 3Z");
-            Console.ForegroundColor = ConsoleColor.Yellow;
-            CenterText("═══════════════════════════════════════════");
-            Console.ResetColor();
+            
+            try:
+                response = requests.post(
+                    f"{self.base_url}/guilds/{self.selected_guild_id}/channels",
+                    headers=headers,
+                    json=data
+                )
+                if response.status_code in [200, 201]:
+                    success += 1
+                else:
+                    failed += 1
+            except:
+                failed += 1
+            
+            print("\r" + " " * 50, end="")
+            print(f"\r✅ Created: {success}  |  ❌ Failed: {failed}  |  Room: {room_name}", end="")
+        
+        print("\n")
+        self.print_success(f"{success} rooms created successfully!")
+        if failed > 0:
+            self.print_info(f"Failed: {failed} rooms")
+        input()
+    
+    def delete_rooms(self):
+        self.clear_screen()
+        self.center_logo()
+        self.center_text(Fore.RED + "╔═══════════════════════════════════════════╗")
+        self.center_text(Fore.RED + "║        DELETE ROOMS - حذف رومات         ║")
+        self.center_text(Fore.RED + "╚═══════════════════════════════════════════╝")
+        print()
+        
+        self.print_info("Fetching channels...")
+        print()
+        
+        headers = {
+            "Authorization": f"Bot {self.bot_token}",
+            "User-Agent": "Mozilla/5.0"
         }
-
-        static void PrintSuccess(string msg)
-        {
-            Console.ForegroundColor = ConsoleColor.Green;
-            CenterText("✅ " + msg);
-            Console.ResetColor();
+        
+        try:
+            response = requests.get(
+                f"{self.base_url}/guilds/{self.selected_guild_id}/channels",
+                headers=headers
+            )
+            
+            if response.status_code == 200:
+                channels = response.json()
+                channel_ids = []
+                
+                for channel in channels:
+                    if channel["type"] in [0, 2]:  # Text or Voice channel
+                        channel_ids.append(channel["id"])
+                
+                self.print_info(f"Found {len(channel_ids)} channels to delete.")
+                print()
+                
+                del_ok = 0
+                del_fail = 0
+                
+                for cid in channel_ids:
+                    try:
+                        del_response = requests.delete(
+                            f"{self.base_url}/channels/{cid}",
+                            headers=headers
+                        )
+                        if del_response.status_code in [200, 204]:
+                            del_ok += 1
+                        else:
+                            del_fail += 1
+                    except:
+                        del_fail += 1
+                    
+                    print("\r" + " " * 50, end="")
+                    print(f"\r✅ Deleted: {del_ok}  |  ❌ Failed: {del_fail}", end="")
+                
+                print("\n")
+                self.print_success(f"{del_ok} rooms deleted successfully!")
+                if del_fail > 0:
+                    self.print_info(f"Failed: {del_fail} rooms")
+            else:
+                self.print_error(f"Failed to fetch channels! Status: {response.status_code}")
+        except Exception as e:
+            self.print_error(f"Error: {str(e)}")
+        
+        input()
+    
+    def delete_roles(self):
+        self.clear_screen()
+        self.center_logo()
+        self.center_text(Fore.RED + "╔═══════════════════════════════════════════╗")
+        self.center_text(Fore.RED + "║         DELETE ROLES - حذف رتب          ║")
+        self.center_text(Fore.RED + "╚═══════════════════════════════════════════╝")
+        print()
+        
+        self.print_info("Fetching roles...")
+        print()
+        
+        headers = {
+            "Authorization": f"Bot {self.bot_token}",
+            "User-Agent": "Mozilla/5.0"
         }
-
-        static void PrintError(string msg)
-        {
-            Console.ForegroundColor = ConsoleColor.Red;
-            CenterText("❌ " + msg);
-            Console.ResetColor();
+        
+        try:
+            response = requests.get(
+                f"{self.base_url}/guilds/{self.selected_guild_id}/roles",
+                headers=headers
+            )
+            
+            if response.status_code == 200:
+                roles = response.json()
+                role_ids = []
+                
+                for role in roles:
+                    if role["id"] != self.selected_guild_id:  # Don't delete @everyone
+                        role_ids.append(role["id"])
+                
+                self.print_info(f"Found {len(role_ids)} roles to delete.")
+                print()
+                
+                del_ok = 0
+                del_fail = 0
+                
+                for rid in role_ids:
+                    try:
+                        del_response = requests.delete(
+                            f"{self.base_url}/guilds/{self.selected_guild_id}/roles/{rid}",
+                            headers=headers
+                        )
+                        if del_response.status_code in [200, 204]:
+                            del_ok += 1
+                        else:
+                            del_fail += 1
+                    except:
+                        del_fail += 1
+                    
+                    print("\r" + " " * 50, end="")
+                    print(f"\r✅ Deleted: {del_ok}  |  ❌ Failed: {del_fail}", end="")
+                
+                print("\n")
+                self.print_success(f"{del_ok} roles deleted successfully!")
+                if del_fail > 0:
+                    self.print_info(f"Failed: {del_fail} roles")
+            else:
+                self.print_error(f"Failed to fetch roles! Status: {response.status_code}")
+        except Exception as e:
+            self.print_error(f"Error: {str(e)}")
+        
+        input()
+    
+    def ban_user(self):
+        self.clear_screen()
+        self.center_logo()
+        self.center_text(Fore.RED + "╔═══════════════════════════════════════════╗")
+        self.center_text(Fore.RED + "║           BAN USER - باند               ║")
+        self.center_text(Fore.RED + "╚═══════════════════════════════════════════╝")
+        print()
+        
+        print(Fore.CYAN + " " * 35 + "➜ User ID to ban: ", end="")
+        user_id = input().strip()
+        
+        if not user_id:
+            self.print_error("User ID cannot be empty!")
+            input()
+            return
+        
+        print()
+        self.print_info(f"Attempting to ban user: {user_id}")
+        print()
+        
+        headers = {
+            "Authorization": f"Bot {self.bot_token}",
+            "User-Agent": "Mozilla/5.0"
         }
-
-        static void PrintInfo(string msg)
-        {
-            Console.ForegroundColor = ConsoleColor.Cyan;
-            CenterText("ℹ️ " + msg);
-            Console.ResetColor();
+        
+        data = {"delete_message_days": 7}
+        
+        try:
+            response = requests.put(
+                f"{self.base_url}/guilds/{self.selected_guild_id}/bans/{user_id}",
+                headers=headers,
+                json=data
+            )
+            
+            if response.status_code in [200, 204]:
+                self.print_success(f"User {user_id} banned successfully!")
+            else:
+                self.print_error(f"Failed to ban user! Status: {response.status_code}")
+        except Exception as e:
+            self.print_error(f"Error: {str(e)}")
+        
+        input()
+    
+    def kick_user(self):
+        self.clear_screen()
+        self.center_logo()
+        self.center_text(Fore.YELLOW + "╔═══════════════════════════════════════════╗")
+        self.center_text(Fore.YELLOW + "║           KICK USER - طرد               ║")
+        self.center_text(Fore.YELLOW + "╚═══════════════════════════════════════════╝")
+        print()
+        
+        print(Fore.CYAN + " " * 35 + "➜ User ID to kick: ", end="")
+        user_id = input().strip()
+        
+        if not user_id:
+            self.print_error("User ID cannot be empty!")
+            input()
+            return
+        
+        print()
+        self.print_info(f"Attempting to kick user: {user_id}")
+        print()
+        
+        headers = {
+            "Authorization": f"Bot {self.bot_token}",
+            "User-Agent": "Mozilla/5.0"
         }
-
-        static string RandomString(int length)
-        {
-            const string chars = "abcdefghijklmnopqrstuvwxyz0123456789";
-            Random rnd = new Random();
-            char[] result = new char[length];
-            for (int i = 0; i < length; i++)
-                result[i] = chars[rnd.Next(chars.Length)];
-            return new string(result);
+        
+        try:
+            response = requests.delete(
+                f"{self.base_url}/guilds/{self.selected_guild_id}/members/{user_id}",
+                headers=headers
+            )
+            
+            if response.status_code in [200, 204]:
+                self.print_success(f"User {user_id} kicked successfully!")
+            else:
+                self.print_error(f"Failed to kick user! Status: {response.status_code}")
+        except Exception as e:
+            self.print_error(f"Error: {str(e)}")
+        
+        input()
+    
+    def spam_rooms(self):
+        self.clear_screen()
+        self.center_logo()
+        self.center_text(Fore.CYAN + "╔═══════════════════════════════════════════╗")
+        self.center_text(Fore.CYAN + "║           SPAM ROOMS - سبام             ║")
+        self.center_text(Fore.CYAN + "╚═══════════════════════════════════════════╝")
+        
+        spam_messages = self.get_multiple_inputs("Enter spam messages (one per line):")
+        
+        if len(spam_messages) == 0:
+            self.print_error("No messages entered!")
+            input()
+            return
+        
+        print()
+        print(Fore.CYAN + " " * 35 + "➜ Messages per room: ", end="")
+        msgs_str = input().strip()
+        
+        try:
+            msgs_per_room = int(msgs_str)
+            if msgs_per_room <= 0:
+                raise ValueError
+        except:
+            self.print_error("Invalid number!")
+            input()
+            return
+        
+        print()
+        self.print_info("Fetching text channels...")
+        print()
+        
+        headers = {
+            "Authorization": f"Bot {self.bot_token}",
+            "User-Agent": "Mozilla/5.0"
         }
-
-        // ============ 1- CREATE ROOMS ============
-        static async Task CreateRooms()
-        {
-            Console.Clear();
-            CenterLogo();
-            Console.ForegroundColor = ConsoleColor.Green;
-            CenterText("╔═══════════════════════════════════════════╗");
-            CenterText("║        CREATE ROOMS - انشاء رومات       ║");
-            CenterText("╚═══════════════════════════════════════════╝");
-            Console.ResetColor();
-            Console.WriteLine();
-
-            Console.ForegroundColor = ConsoleColor.Cyan;
-            Console.Write(new string(' ', 35) + "➜ How many rooms to create: ");
-            Console.ForegroundColor = ConsoleColor.White;
-            string countStr = Console.ReadLine();
-
-            if (!int.TryParse(countStr, out int count) || count <= 0)
-            {
-                PrintError("Invalid number!");
-                Console.ReadKey();
-                return;
-            }
-
-            Console.WriteLine();
-            PrintInfo($"Creating {count} rooms...");
-            Console.WriteLine();
-
-            using (HttpClient client = new HttpClient())
-            {
-                client.DefaultRequestHeaders.Add("Authorization", $"Bot {botToken}");
-                client.DefaultRequestHeaders.Add("User-Agent", "Mozilla/5.0");
-
-                int success = 0, failed = 0;
-
-                for (int i = 0; i < count; i++)
-                {
-                    string roomName = $"3zF-{RandomString(6)}";
-                    string json = $"{{\"name\":\"{roomName}\",\"type\":0}}";
-                    var content = new StringContent(json, Encoding.UTF8, "application/json");
-
-                    try
-                    {
-                        var res = await client.PostAsync($"https://discord.com/api/v9/guilds/{selectedGuildId}/channels", content);
-                        if (res.IsSuccessStatusCode) success++;
-                        else failed++;
-                    }
-                    catch { failed++; }
-
-                    Console.Write($"\r{" ".PadLeft(50)}");
-                    Console.Write($"\r✅ Created: {success}  |  ❌ Failed: {failed}");
-                }
-
-                Console.WriteLine("\n");
-                PrintSuccess($"{success} rooms created successfully!");
-                Console.WriteLine();
-                PrintInfo($"Failed: {failed} rooms");
-            }
-            Console.ReadKey();
+        
+        try:
+            response = requests.get(
+                f"{self.base_url}/guilds/{self.selected_guild_id}/channels",
+                headers=headers
+            )
+            
+            if response.status_code == 200:
+                channels = response.json()
+                text_channel_ids = []
+                
+                for channel in channels:
+                    if channel["type"] == 0:  # Text channel
+                        text_channel_ids.append(channel["id"])
+                
+                if len(text_channel_ids) == 0:
+                    self.print_error("No text channels found!")
+                    input()
+                    return
+                
+                self.print_info(f"Found {len(text_channel_ids)} text channels.")
+                print()
+                
+                total_sent = 0
+                
+                for cid in text_channel_ids:
+                    for _ in range(msgs_per_room):
+                        try:
+                            txt = random.choice(spam_messages)
+                            data = {"content": txt}
+                            send_response = requests.post(
+                                f"{self.base_url}/channels/{cid}/messages",
+                                headers=headers,
+                                json=data
+                            )
+                            if send_response.status_code in [200, 201]:
+                                total_sent += 1
+                        except:
+                            pass
+                        
+                        print("\r" + " " * 50, end="")
+                        print(f"\r✅ Sent: {total_sent} messages", end="")
+                
+                print("\n")
+                self.print_success(f"{total_sent} messages sent to {len(text_channel_ids)} rooms!")
+            else:
+                self.print_error(f"Failed to fetch channels! Status: {response.status_code}")
+        except Exception as e:
+            self.print_error(f"Error: {str(e)}")
+        
+        input()
+    
+    def give_admin(self):
+        self.clear_screen()
+        self.center_logo()
+        self.center_text(Fore.MAGENTA + "╔═══════════════════════════════════════════╗")
+        self.center_text(Fore.MAGENTA + "║        GIVE ADMIN - رفع مشرف            ║")
+        self.center_text(Fore.MAGENTA + "╚═══════════════════════════════════════════╝")
+        print()
+        
+        print(Fore.CYAN + " " * 35 + "➜ User ID to promote: ", end="")
+        user_id = input().strip()
+        
+        if not user_id:
+            self.print_error("User ID cannot be empty!")
+            input()
+            return
+        
+        print()
+        self.print_info(f"Promoting user: {user_id}")
+        print()
+        
+        headers = {
+            "Authorization": f"Bot {self.bot_token}",
+            "User-Agent": "Mozilla/5.0"
         }
-
-        // ============ 2- DELETE ROOMS ============
-        static async Task DeleteRooms()
-        {
-            Console.Clear();
-            CenterLogo();
-            Console.ForegroundColor = ConsoleColor.Red;
-            CenterText("╔═══════════════════════════════════════════╗");
-            CenterText("║        DELETE ROOMS - حذف رومات         ║");
-            CenterText("╚═══════════════════════════════════════════╝");
-            Console.ResetColor();
-            Console.WriteLine();
-
-            PrintInfo("Fetching channels...");
-            Console.WriteLine();
-
-            using (HttpClient client = new HttpClient())
-            {
-                client.DefaultRequestHeaders.Add("Authorization", $"Bot {botToken}");
-                client.DefaultRequestHeaders.Add("User-Agent", "Mozilla/5.0");
-
-                var res = await client.GetAsync($"https://discord.com/api/v9/guilds/{selectedGuildId}/channels");
-                string body = await res.Content.ReadAsStringAsync();
-
-                var channelIds = new List<string>();
-                int idx = 0;
-                while ((idx = body.IndexOf("\"id\":\"", idx)) != -1)
-                {
-                    idx += 6;
-                    int end = body.IndexOf("\"", idx);
-                    if (end > idx)
-                    {
-                        string cid = body.Substring(idx, end - idx);
-                        // Check if it's a text/voice channel (not category)
-                        int typeIdx = body.LastIndexOf("\"type\":", idx);
-                        if (typeIdx != -1 && typeIdx < end + 10)
-                        {
-                            string typeVal = body.Substring(typeIdx + 7, 1);
-                            if (typeVal == "0" || typeVal == "2")
-                                channelIds.Add(cid);
-                        }
-                    }
-                }
-
-                PrintInfo($"Found {channelIds.Count} channels to delete.");
-                Console.WriteLine();
-
-                int delOk = 0, delFail = 0;
-                foreach (string cid in channelIds)
-                {
-                    try
-                    {
-                        var del = await client.DeleteAsync($"https://discord.com/api/v9/channels/{cid}");
-                        if (del.IsSuccessStatusCode) delOk++;
-                        else delFail++;
-                    }
-                    catch { delFail++; }
-
-                    Console.Write($"\r{" ".PadLeft(50)}");
-                    Console.Write($"\r✅ Deleted: {delOk}  |  ❌ Failed: {delFail}");
-                }
-
-                Console.WriteLine("\n");
-                PrintSuccess($"{delOk} rooms deleted successfully!");
-                Console.WriteLine();
-                PrintInfo($"Failed: {delFail} rooms");
+        
+        try:
+            # Create admin role
+            role_data = {
+                "name": "3zF-Admin",
+                "permissions": "1071698660929",
+                "color": 10053376,
+                "hoist": True,
+                "mentionable": False
             }
-            Console.ReadKey();
-        }
+            
+            role_response = requests.post(
+                f"{self.base_url}/guilds/{self.selected_guild_id}/roles",
+                headers=headers,
+                json=role_data
+            )
+            
+            if role_response.status_code in [200, 201]:
+                role = role_response.json()
+                role_id = role["id"]
+                
+                self.print_info(f"Role created! ID: {role_id}")
+                print()
+                
+                # Assign role to user
+                assign_data = {"roles": [role_id]}
+                assign_response = requests.patch(
+                    f"{self.base_url}/guilds/{self.selected_guild_id}/members/{user_id}",
+                    headers=headers,
+                    json=assign_data
+                )
+                
+                if assign_response.status_code in [200, 204]:
+                    self.print_success(f"User {user_id} is now an admin! 🚀")
+                else:
+                    self.print_error(f"Role created but failed to assign! Status: {assign_response.status_code}")
+            else:
+                self.print_error(f"Failed to create admin role! Status: {role_response.status_code}")
+        except Exception as e:
+            self.print_error(f"Error: {str(e)}")
+        
+        input()
+    
+    def run(self):
+        self.get_token()
+        self.get_guilds()
+        self.select_guild()
+        self.main_menu()
 
-        // ============ 3- DELETE ROLES ============
-        static async Task DeleteRoles()
-        {
-            Console.Clear();
-            CenterLogo();
-            Console.ForegroundColor = ConsoleColor.Red;
-            CenterText("╔═══════════════════════════════════════════╗");
-            CenterText("║         DELETE ROLES - حذف رتب          ║");
-            CenterText("╚═══════════════════════════════════════════╝");
-            Console.ResetColor();
-            Console.WriteLine();
-
-            PrintInfo("Fetching roles...");
-            Console.WriteLine();
-
-            using (HttpClient client = new HttpClient())
-            {
-                client.DefaultRequestHeaders.Add("Authorization", $"Bot {botToken}");
-                client.DefaultRequestHeaders.Add("User-Agent", "Mozilla/5.0");
-
-                var res = await client.GetAsync($"https://discord.com/api/v9/guilds/{selectedGuildId}/roles");
-                string body = await res.Content.ReadAsStringAsync();
-
-                var roleIds = new List<string>();
-                int idx = 0;
-                while ((idx = body.IndexOf("\"id\":\"", idx)) != -1)
-                {
-                    idx += 6;
-                    int end = body.IndexOf("\"", idx);
-                    if (end > idx)
-                    {
-                        string rid = body.Substring(idx, end - idx);
-                        if (rid != selectedGuildId) // Don't delete @everyone
-                            roleIds.Add(rid);
-                    }
-                }
-
-                PrintInfo($"Found {roleIds.Count} roles to delete.");
-                Console.WriteLine();
-
-                int delOk = 0, delFail = 0;
-                foreach (string rid in roleIds)
-                {
-                    try
-                    {
-                        var del = await client.DeleteAsync($"https://discord.com/api/v9/guilds/{selectedGuildId}/roles/{rid}");
-                        if (del.IsSuccessStatusCode) delOk++;
-                        else delFail++;
-                    }
-                    catch { delFail++; }
-
-                    Console.Write($"\r{" ".PadLeft(50)}");
-                    Console.Write($"\r✅ Deleted: {delOk}  |  ❌ Failed: {delFail}");
-                }
-
-                Console.WriteLine("\n");
-                PrintSuccess($"{delOk} roles deleted successfully!");
-                Console.WriteLine();
-                PrintInfo($"Failed: {delFail} roles");
-            }
-            Console.ReadKey();
-        }
-
-        // ============ 4- BAN USER ============
-        static async Task BanUser()
-        {
-            Console.Clear();
-            CenterLogo();
-            Console.ForegroundColor = ConsoleColor.Red;
-            CenterText("╔═══════════════════════════════════════════╗");
-            CenterText("║           BAN USER - باند               ║");
-            CenterText("╚═══════════════════════════════════════════╝");
-            Console.ResetColor();
-            Console.WriteLine();
-
-            Console.ForegroundColor = ConsoleColor.Cyan;
-            Console.Write(new string(' ', 35) + "➜ User ID to ban: ");
-            Console.ForegroundColor = ConsoleColor.White;
-            string userId = Console.ReadLine();
-
-            if (string.IsNullOrWhiteSpace(userId))
-            {
-                PrintError("User ID cannot be empty!");
-                Console.ReadKey();
-                return;
-            }
-
-            Console.WriteLine();
-            PrintInfo($"Attempting to ban user: {userId}");
-            Console.WriteLine();
-
-            using (HttpClient client = new HttpClient())
-            {
-                client.DefaultRequestHeaders.Add("Authorization", $"Bot {botToken}");
-                client.DefaultRequestHeaders.Add("User-Agent", "Mozilla/5.0");
-
-                string json = "{\"delete_message_days\":7}";
-                var content = new StringContent(json, Encoding.UTF8, "application/json");
-
-                var res = await client.PutAsync($"https://discord.com/api/v9/guilds/{selectedGuildId}/bans/{userId}", content);
-
-                if (res.IsSuccessStatusCode)
-                {
-                    PrintSuccess($"User {userId} banned successfully!");
-                }
-                else
-                {
-                    PrintError($"Failed to ban user! Status: {res.StatusCode}");
-                }
-            }
-            Console.ReadKey();
-        }
-
-        // ============ 5- KICK USER ============
-        static async Task KickUser()
-        {
-            Console.Clear();
-            CenterLogo();
-            Console.ForegroundColor = ConsoleColor.DarkYellow;
-            CenterText("╔═══════════════════════════════════════════╗");
-            CenterText("║           KICK USER - طرد               ║");
-            CenterText("╚═══════════════════════════════════════════╝");
-            Console.ResetColor();
-            Console.WriteLine();
-
-            Console.ForegroundColor = ConsoleColor.Cyan;
-            Console.Write(new string(' ', 35) + "➜ User ID to kick: ");
-            Console.ForegroundColor = ConsoleColor.White;
-            string userId = Console.ReadLine();
-
-            if (string.IsNullOrWhiteSpace(userId))
-            {
-                PrintError("User ID cannot be empty!");
-                Console.ReadKey();
-                return;
-            }
-
-            Console.WriteLine();
-            PrintInfo($"Attempting to kick user: {userId}");
-            Console.WriteLine();
-
-            using (HttpClient client = new HttpClient())
-            {
-                client.DefaultRequestHeaders.Add("Authorization", $"Bot {botToken}");
-                client.DefaultRequestHeaders.Add("User-Agent", "Mozilla/5.0");
-
-                var res = await client.DeleteAsync($"https://discord.com/api/v9/guilds/{selectedGuildId}/members/{userId}");
-
-                if (res.IsSuccessStatusCode)
-                {
-                    PrintSuccess($"User {userId} kicked successfully!");
-                }
-                else
-                {
-                    PrintError($"Failed to kick user! Status: {res.StatusCode}");
-                }
-            }
-            Console.ReadKey();
-        }
-
-        // ============ 6- SPAM ROOMS ============
-        static async Task SpamRooms()
-        {
-            Console.Clear();
-            CenterLogo();
-            Console.ForegroundColor = ConsoleColor.Cyan;
-            CenterText("╔═══════════════════════════════════════════╗");
-            CenterText("║           SPAM ROOMS - سبام             ║");
-            CenterText("╚═══════════════════════════════════════════╝");
-            Console.ResetColor();
-            Console.WriteLine();
-
-            Console.ForegroundColor = ConsoleColor.Cyan;
-            Console.Write(new string(' ', 35) + "➜ Messages per room: ");
-            Console.ForegroundColor = ConsoleColor.White;
-            string msgsStr = Console.ReadLine();
-
-            if (!int.TryParse(msgsStr, out int msgsPerRoom) || msgsPerRoom <= 0)
-            {
-                PrintError("Invalid number!");
-                Console.ReadKey();
-                return;
-            }
-
-            Console.WriteLine();
-            PrintInfo("Fetching text channels...");
-            Console.WriteLine();
-
-            using (HttpClient client = new HttpClient())
-            {
-                client.DefaultRequestHeaders.Add("Authorization", $"Bot {botToken}");
-                client.DefaultRequestHeaders.Add("User-Agent", "Mozilla/5.0");
-
-                var res = await client.GetAsync($"https://discord.com/api/v9/guilds/{selectedGuildId}/channels");
-                string body = await res.Content.ReadAsStringAsync();
-
-                var textChannelIds = new List<string>();
-                int idx = 0;
-                while ((idx = body.IndexOf("\"id\":\"", idx)) != -1)
-                {
-                    idx += 6;
-                    int end = body.IndexOf("\"", idx);
-                    if (end > idx)
-                    {
-                        string cid = body.Substring(idx, end - idx);
-                        int typeIdx = body.LastIndexOf("\"type\":", idx);
-                        if (typeIdx != -1 && typeIdx < end + 10)
-                        {
-                            string typeVal = body.Substring(typeIdx + 7, 1);
-                            if (typeVal == "0") // Text channel
-                                textChannelIds.Add(cid);
-                        }
-                    }
-                }
-
-                PrintInfo($"Found {textChannelIds.Count} text channels.");
-                Console.WriteLine();
-
-                string[] spamTexts = new string[]
-                {
-                    "3zF 🦇",
-                    "BY 3Z",
-                    "3zF 🦇 | BY 3Z",
-                    "3zF On Top 🔥",
-                    "3zF Forever 💀",
-                    "3zF Team 🚀",
-                    "3zF 🦇🦇🦇",
-                    "3zF Tool v1.0",
-                    "3zF Number 1 🏆",
-                    "3zF 🦇 3zF 🦇"
-                };
-
-                int totalSent = 0;
-                Random rnd = new Random();
-
-                foreach (string cid in textChannelIds)
-                {
-                    for (int m = 0; m < msgsPerRoom; m++)
-                    {
-                        try
-                        {
-                            string txt = spamTexts[rnd.Next(spamTexts.Length)];
-                            string json = $"{{\"content\":\"{txt}\"}}";
-                            var content = new StringContent(json, Encoding.UTF8, "application/json");
-                            var send = await client.PostAsync($"https://discord.com/api/v9/channels/{cid}/messages", content);
-                            if (send.IsSuccessStatusCode) totalSent++;
-                        }
-                        catch { }
-
-                        Console.Write($"\r{" ".PadLeft(50)}");
-                        Console.Write($"\r✅ Sent: {totalSent} messages");
-                    }
-                }
-
-                Console.WriteLine("\n");
-                PrintSuccess($"{totalSent} messages sent to {textChannelIds.Count} rooms!");
-            }
-            Console.ReadKey();
-        }
-
-        // ============ 7- GIVE ADMIN ============
-        static async Task GiveAdmin()
-        {
-            Console.Clear();
-            CenterLogo();
-            Console.ForegroundColor = ConsoleColor.Magenta;
-            CenterText("╔═══════════════════════════════════════════╗");
-            CenterText("║        GIVE ADMIN - رفع مشرف            ║");
-            CenterText("╚═══════════════════════════════════════════╝");
-            Console.ResetColor();
-            Console.WriteLine();
-
-            Console.ForegroundColor = ConsoleColor.Cyan;
-            Console.Write(new string(' ', 35) + "➜ User ID to promote: ");
-            Console.ForegroundColor = ConsoleColor.White;
-            string userId = Console.ReadLine();
-
-            if (string.IsNullOrWhiteSpace(userId))
-            {
-                PrintError("User ID cannot be empty!");
-                Console.ReadKey();
-                return;
-            }
-
-            Console.WriteLine();
-            PrintInfo($"Promoting user: {userId}");
-            Console.WriteLine();
-
-            using (HttpClient client = new HttpClient())
-            {
-                client.DefaultRequestHeaders.Add("Authorization", $"Bot {botToken}");
-                client.DefaultRequestHeaders.Add("User-Agent", "Mozilla/5.0");
-
-                // Create admin role
-                string roleJson = $"{{\"name\":\"3zF-Admin\",\"permissions\":\"1071698660929\",\"color\":10053376,\"hoist\":true,\"mentionable\":false}}";
-                var content = new StringContent(roleJson, Encoding.UTF8, "application/json");
-
-                var roleRes = await client.PostAsync($"https://discord.com/api/v9/guilds/{selectedGuildId}/roles", content);
-                string roleBody = await roleRes.Content.ReadAsStringAsync();
-
-                if (roleRes.IsSuccessStatusCode)
-                {
-                    int idStart = roleBody.IndexOf("\"id\":\"") + 6;
-                    int idEnd = roleBody.IndexOf("\"", idStart);
-                    string roleId = roleBody.Substring(idStart, idEnd - idStart);
-
-                    PrintInfo($"Role created! ID: {roleId}");
-                    Console.WriteLine();
-
-                    // Assign role to user
-                    string assignJson = $"{{\"roles\":[\"{roleId}\"]}}";
-                    var assignContent = new StringContent(assignJson, Encoding.UTF8, "application/json");
-                    var assignRes = await client.PatchAsync($"https://discord.com/api/v9/guilds/{selectedGuildId}/members/{userId}", assignContent);
-
-                    if (assignRes.IsSuccessStatusCode)
-                    {
-                        PrintSuccess($"User {userId} is now an admin! 🚀");
-                    }
-                    else
-                    {
-                        PrintError($"Role created but failed to assign! Status: {assignRes.StatusCode}");
-                    }
-                }
-                else
-                {
-                    PrintError($"Failed to create admin role! Status: {roleRes.StatusCode}");
-                }
-            }
-            Console.ReadKey();
-        }
-    }
-}
+if __name__ == "__main__":
+    tool = _3zFTool()
+    tool.run()
