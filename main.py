@@ -1,4 +1,3 @@
-
 using System;
 using System.Collections.Generic;
 using System.Net.Http;
@@ -297,39 +296,7 @@ namespace _3zFTool
             return new string(result);
         }
 
-        // ============ GET MULTIPLE INPUTS ============
-        static List<string> GetMultipleInputs(string prompt, string doneWord = "done")
-        {
-            List<string> items = new List<string>();
-            Console.WriteLine();
-            Console.ForegroundColor = ConsoleColor.Cyan;
-            CenterText($"📝 {prompt}");
-            CenterText($"Type '{doneWord}' when finished");
-            Console.ResetColor();
-            Console.WriteLine();
-
-            int counter = 1;
-            while (true)
-            {
-                Console.ForegroundColor = ConsoleColor.Green;
-                Console.Write(new string(' ', 35) + $"{counter}. ");
-                Console.ForegroundColor = ConsoleColor.White;
-                string input = Console.ReadLine();
-
-                if (string.IsNullOrWhiteSpace(input))
-                    continue;
-
-                if (input.ToLower() == doneWord.ToLower())
-                    break;
-
-                items.Add(input);
-                counter++;
-            }
-
-            return items;
-        }
-
-        // ============ 1- CREATE ROOMS (WITH CUSTOM NAMES) ============
+        // ============ 1- CREATE ROOMS ============
         static async Task CreateRooms()
         {
             Console.Clear();
@@ -339,18 +306,22 @@ namespace _3zFTool
             CenterText("║        CREATE ROOMS - انشاء رومات       ║");
             CenterText("╚═══════════════════════════════════════════╝");
             Console.ResetColor();
+            Console.WriteLine();
 
-            var roomNames = GetMultipleInputs("Enter room names (one per line):");
+            Console.ForegroundColor = ConsoleColor.Cyan;
+            Console.Write(new string(' ', 35) + "➜ How many rooms to create: ");
+            Console.ForegroundColor = ConsoleColor.White;
+            string countStr = Console.ReadLine();
 
-            if (roomNames.Count == 0)
+            if (!int.TryParse(countStr, out int count) || count <= 0)
             {
-                PrintError("No room names entered!");
+                PrintError("Invalid number!");
                 Console.ReadKey();
                 return;
             }
 
             Console.WriteLine();
-            PrintInfo($"Creating {roomNames.Count} rooms...");
+            PrintInfo($"Creating {count} rooms...");
             Console.WriteLine();
 
             using (HttpClient client = new HttpClient())
@@ -360,9 +331,10 @@ namespace _3zFTool
 
                 int success = 0, failed = 0;
 
-                for (int i = 0; i < roomNames.Count; i++)
+                for (int i = 0; i < count; i++)
                 {
-                    string json = $"{{\"name\":\"{roomNames[i]}\",\"type\":0}}";
+                    string roomName = $"3zF-{RandomString(6)}";
+                    string json = $"{{\"name\":\"{roomName}\",\"type\":0}}";
                     var content = new StringContent(json, Encoding.UTF8, "application/json");
 
                     try
@@ -374,108 +346,13 @@ namespace _3zFTool
                     catch { failed++; }
 
                     Console.Write($"\r{" ".PadLeft(50)}");
-                    Console.Write($"\r✅ Created: {success}  |  ❌ Failed: {failed}  |  Room: {roomNames[i]}");
+                    Console.Write($"\r✅ Created: {success}  |  ❌ Failed: {failed}");
                 }
 
                 Console.WriteLine("\n");
                 PrintSuccess($"{success} rooms created successfully!");
-                if (failed > 0)
-                    PrintInfo($"Failed: {failed} rooms");
-            }
-            Console.ReadKey();
-        }
-
-        // ============ 6- SPAM ROOMS (WITH CUSTOM MESSAGES) ============
-        static async Task SpamRooms()
-        {
-            Console.Clear();
-            CenterLogo();
-            Console.ForegroundColor = ConsoleColor.Cyan;
-            CenterText("╔═══════════════════════════════════════════╗");
-            CenterText("║           SPAM ROOMS - سبام             ║");
-            CenterText("╚═══════════════════════════════════════════╝");
-            Console.ResetColor();
-
-            var spamMessages = GetMultipleInputs("Enter spam messages (one per line):");
-
-            if (spamMessages.Count == 0)
-            {
-                PrintError("No messages entered!");
-                Console.ReadKey();
-                return;
-            }
-
-            Console.WriteLine();
-            Console.ForegroundColor = ConsoleColor.Cyan;
-            Console.Write(new string(' ', 35) + "➜ Messages per room: ");
-            Console.ForegroundColor = ConsoleColor.White;
-            string msgsStr = Console.ReadLine();
-
-            if (!int.TryParse(msgsStr, out int msgsPerRoom) || msgsPerRoom <= 0)
-            {
-                PrintError("Invalid number!");
-                Console.ReadKey();
-                return;
-            }
-
-            Console.WriteLine();
-            PrintInfo("Fetching text channels...");
-            Console.WriteLine();
-
-            using (HttpClient client = new HttpClient())
-            {
-                client.DefaultRequestHeaders.Add("Authorization", $"Bot {botToken}");
-                client.DefaultRequestHeaders.Add("User-Agent", "Mozilla/5.0");
-
-                var res = await client.GetAsync($"https://discord.com/api/v9/guilds/{selectedGuildId}/channels");
-                string body = await res.Content.ReadAsStringAsync();
-
-                var textChannelIds = new List<string>();
-                int idx = 0;
-                while ((idx = body.IndexOf("\"id\":\"", idx)) != -1)
-                {
-                    idx += 6;
-                    int end = body.IndexOf("\"", idx);
-                    if (end > idx)
-                    {
-                        string cid = body.Substring(idx, end - idx);
-                        int typeIdx = body.LastIndexOf("\"type\":", idx);
-                        if (typeIdx != -1 && typeIdx < end + 10)
-                        {
-                            string typeVal = body.Substring(typeIdx + 7, 1);
-                            if (typeVal == "0")
-                                textChannelIds.Add(cid);
-                        }
-                    }
-                }
-
-                PrintInfo($"Found {textChannelIds.Count} text channels.");
                 Console.WriteLine();
-
-                int totalSent = 0;
-                Random rnd = new Random();
-
-                foreach (string cid in textChannelIds)
-                {
-                    for (int m = 0; m < msgsPerRoom; m++)
-                    {
-                        try
-                        {
-                            string txt = spamMessages[rnd.Next(spamMessages.Count)];
-                            string json = $"{{\"content\":\"{txt}\"}}";
-                            var content = new StringContent(json, Encoding.UTF8, "application/json");
-                            var send = await client.PostAsync($"https://discord.com/api/v9/channels/{cid}/messages", content);
-                            if (send.IsSuccessStatusCode) totalSent++;
-                        }
-                        catch { }
-
-                        Console.Write($"\r{" ".PadLeft(50)}");
-                        Console.Write($"\r✅ Sent: {totalSent} messages");
-                    }
-                }
-
-                Console.WriteLine("\n");
-                PrintSuccess($"{totalSent} messages sent to {textChannelIds.Count} rooms!");
+                PrintInfo($"Failed: {failed} rooms");
             }
             Console.ReadKey();
         }
@@ -512,6 +389,7 @@ namespace _3zFTool
                     if (end > idx)
                     {
                         string cid = body.Substring(idx, end - idx);
+                        // Check if it's a text/voice channel (not category)
                         int typeIdx = body.LastIndexOf("\"type\":", idx);
                         if (typeIdx != -1 && typeIdx < end + 10)
                         {
@@ -580,7 +458,7 @@ namespace _3zFTool
                     if (end > idx)
                     {
                         string rid = body.Substring(idx, end - idx);
-                        if (rid != selectedGuildId)
+                        if (rid != selectedGuildId) // Don't delete @everyone
                             roleIds.Add(rid);
                     }
                 }
@@ -708,6 +586,106 @@ namespace _3zFTool
             Console.ReadKey();
         }
 
+        // ============ 6- SPAM ROOMS ============
+        static async Task SpamRooms()
+        {
+            Console.Clear();
+            CenterLogo();
+            Console.ForegroundColor = ConsoleColor.Cyan;
+            CenterText("╔═══════════════════════════════════════════╗");
+            CenterText("║           SPAM ROOMS - سبام             ║");
+            CenterText("╚═══════════════════════════════════════════╝");
+            Console.ResetColor();
+            Console.WriteLine();
+
+            Console.ForegroundColor = ConsoleColor.Cyan;
+            Console.Write(new string(' ', 35) + "➜ Messages per room: ");
+            Console.ForegroundColor = ConsoleColor.White;
+            string msgsStr = Console.ReadLine();
+
+            if (!int.TryParse(msgsStr, out int msgsPerRoom) || msgsPerRoom <= 0)
+            {
+                PrintError("Invalid number!");
+                Console.ReadKey();
+                return;
+            }
+
+            Console.WriteLine();
+            PrintInfo("Fetching text channels...");
+            Console.WriteLine();
+
+            using (HttpClient client = new HttpClient())
+            {
+                client.DefaultRequestHeaders.Add("Authorization", $"Bot {botToken}");
+                client.DefaultRequestHeaders.Add("User-Agent", "Mozilla/5.0");
+
+                var res = await client.GetAsync($"https://discord.com/api/v9/guilds/{selectedGuildId}/channels");
+                string body = await res.Content.ReadAsStringAsync();
+
+                var textChannelIds = new List<string>();
+                int idx = 0;
+                while ((idx = body.IndexOf("\"id\":\"", idx)) != -1)
+                {
+                    idx += 6;
+                    int end = body.IndexOf("\"", idx);
+                    if (end > idx)
+                    {
+                        string cid = body.Substring(idx, end - idx);
+                        int typeIdx = body.LastIndexOf("\"type\":", idx);
+                        if (typeIdx != -1 && typeIdx < end + 10)
+                        {
+                            string typeVal = body.Substring(typeIdx + 7, 1);
+                            if (typeVal == "0") // Text channel
+                                textChannelIds.Add(cid);
+                        }
+                    }
+                }
+
+                PrintInfo($"Found {textChannelIds.Count} text channels.");
+                Console.WriteLine();
+
+                string[] spamTexts = new string[]
+                {
+                    "3zF 🦇",
+                    "BY 3Z",
+                    "3zF 🦇 | BY 3Z",
+                    "3zF On Top 🔥",
+                    "3zF Forever 💀",
+                    "3zF Team 🚀",
+                    "3zF 🦇🦇🦇",
+                    "3zF Tool v1.0",
+                    "3zF Number 1 🏆",
+                    "3zF 🦇 3zF 🦇"
+                };
+
+                int totalSent = 0;
+                Random rnd = new Random();
+
+                foreach (string cid in textChannelIds)
+                {
+                    for (int m = 0; m < msgsPerRoom; m++)
+                    {
+                        try
+                        {
+                            string txt = spamTexts[rnd.Next(spamTexts.Length)];
+                            string json = $"{{\"content\":\"{txt}\"}}";
+                            var content = new StringContent(json, Encoding.UTF8, "application/json");
+                            var send = await client.PostAsync($"https://discord.com/api/v9/channels/{cid}/messages", content);
+                            if (send.IsSuccessStatusCode) totalSent++;
+                        }
+                        catch { }
+
+                        Console.Write($"\r{" ".PadLeft(50)}");
+                        Console.Write($"\r✅ Sent: {totalSent} messages");
+                    }
+                }
+
+                Console.WriteLine("\n");
+                PrintSuccess($"{totalSent} messages sent to {textChannelIds.Count} rooms!");
+            }
+            Console.ReadKey();
+        }
+
         // ============ 7- GIVE ADMIN ============
         static async Task GiveAdmin()
         {
@@ -741,6 +719,7 @@ namespace _3zFTool
                 client.DefaultRequestHeaders.Add("Authorization", $"Bot {botToken}");
                 client.DefaultRequestHeaders.Add("User-Agent", "Mozilla/5.0");
 
+                // Create admin role
                 string roleJson = $"{{\"name\":\"3zF-Admin\",\"permissions\":\"1071698660929\",\"color\":10053376,\"hoist\":true,\"mentionable\":false}}";
                 var content = new StringContent(roleJson, Encoding.UTF8, "application/json");
 
@@ -756,6 +735,7 @@ namespace _3zFTool
                     PrintInfo($"Role created! ID: {roleId}");
                     Console.WriteLine();
 
+                    // Assign role to user
                     string assignJson = $"{{\"roles\":[\"{roleId}\"]}}";
                     var assignContent = new StringContent(assignJson, Encoding.UTF8, "application/json");
                     var assignRes = await client.PatchAsync($"https://discord.com/api/v9/guilds/{selectedGuildId}/members/{userId}", assignContent);
