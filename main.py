@@ -3,7 +3,8 @@ import sys
 import json
 import time
 import random
-import requests
+import asyncio
+import aiohttp
 from colorama import init, Fore, Style
 
 init(autoreset=True)
@@ -13,16 +14,16 @@ class _3zFTool:
         self.bot_token = ""
         self.selected_guild_id = ""
         self.guilds = {}
-        self.base_url = "https://discord.com/api/v10"  # Changed to v10
+        self.base_url = "https://discord.com/api/v10"
+        self.session = None
         
     def clear_screen(self):
         os.system('cls' if os.name == 'nt' else 'clear')
     
     def center_text(self, text):
-        # Remove color codes for centering
         import re
         clean_text = re.sub(r'\x1b\[[0-9;]*m', '', text)
-        width = 90
+        width = 110
         padding = (width - len(clean_text)) // 2
         if padding < 0:
             padding = 0
@@ -30,38 +31,43 @@ class _3zFTool:
     
     def center_logo(self):
         logo = [
-            "██████╗░██████╗░",
-            "╚════██╗╚════██╗",
-            "░░███╔═╝░░███╔═╝",
-            "██╔══╝░░██╔══╝░░",
-            "███████╗███████╗",
-            "╚══════╝╚══════╝"
+            "██╗  ██╗   █████╗   ██████╗   ██████╗  ██████╗ ██╗  ██╗ ███████╗ ██████╗",
+            "██║  ██║  ██╔══██╗  ╚════██╗ ██╔════╝ ██╔════╝ ██║ ██╔╝ ██╔════╝ ██╔══██╗",
+            "███████║  ███████║   █████╔╝ ██║      ██║      █████╔╝  █████╗   ██████╔╝",
+            "██╔══██║  ██╔══██║   ╚═══██╗ ██║      ██║      ██╔═██╗  ██╔══╝   ██╔══██╗",
+            "██║  ██║  ██║  ██║  ██████╔╝ ╚██████╗ ╚██████╗ ██║  ██╗ ███████╗ ██║  ██║",
+            "╚═╝  ╚═╝  ╚═╝  ╚═╝  ╚═════╝   ╚═════╝  ╚═════╝ ╚═╝  ╚═╝ ╚══════╝ ╚═╝  ╚═╝"
         ]
         print()
         for line in logo:
-            print(Fore.MAGENTA + " " * 38 + line)
+            print(Fore.CYAN + " " * 35 + line)
         print()
-        self.center_text(Fore.YELLOW + "══════════════════════════════════════════════")
-        self.center_text(Fore.CYAN + "     3zF 🦇  TOOL v1.0 | BY 3Z")
-        self.center_text(Fore.YELLOW + "══════════════════════════════════════════════")
+        self.center_text(Fore.YELLOW + "╔═══════════════════════════════════════════════════════════════════════════════╗")
+        self.center_text(Fore.YELLOW + "║                                                                               ║")
+        self.center_text(Fore.YELLOW + "║" + Fore.MAGENTA + "                    3zF TOOL v2.0 | BY 3Z" + Fore.YELLOW + "                     ║")
+        self.center_text(Fore.YELLOW + "║                                                                               ║")
+        self.center_text(Fore.YELLOW + "╚═══════════════════════════════════════════════════════════════════════════════╝")
         print()
     
     def print_success(self, msg):
-        self.center_text(Fore.GREEN + "✅ " + msg)
+        self.center_text(Fore.GREEN + "[✓] " + msg)
     
     def print_error(self, msg):
-        self.center_text(Fore.RED + "❌ " + msg)
+        self.center_text(Fore.RED + "[✗] " + msg)
     
     def print_info(self, msg):
-        self.center_text(Fore.CYAN + "ℹ️ " + msg)
+        self.center_text(Fore.CYAN + "[*] " + msg)
+    
+    def print_warning(self, msg):
+        self.center_text(Fore.YELLOW + "[!] " + msg)
     
     def print_working(self):
-        self.center_text(Fore.YELLOW + "⏳ WORKING... PLEASE WAIT")
+        self.center_text(Fore.YELLOW + "[~] WORKING... PLEASE WAIT")
     
-    def get_multiple_inputs(self, prompt, done_word="done"):
+    def get_multiple_inputs_with_count(self, prompt, done_word="done"):
         items = []
         print()
-        self.center_text(Fore.CYAN + f"📝 {prompt}")
+        self.center_text(Fore.CYAN + prompt)
         self.center_text(Fore.CYAN + f"Type '{done_word}' when finished")
         print()
         
@@ -79,86 +85,117 @@ class _3zFTool:
             items.append(user_input)
             counter += 1
         
-        return items
+        print()
+        print(Fore.CYAN + " " * 38 + "Repeat count for each item: ", end="")
+        try:
+            repeat = int(input().strip())
+            if repeat <= 0:
+                repeat = 1
+        except:
+            repeat = 1
+        
+        final_items = []
+        for item in items:
+            for _ in range(repeat):
+                final_items.append(item)
+        
+        self.print_info(f"Total items to process: {len(final_items)}")
+        return final_items
     
-    def random_string(self, length):
-        chars = "abcdefghijklmnopqrstuvwxyz0123456789"
-        return ''.join(random.choice(chars) for _ in range(length))
+    async def get_session(self):
+        if self.session is None:
+            connector = aiohttp.TCPConnector(limit=200, limit_per_host=200, ttl_dns_cache=300)
+            timeout = aiohttp.ClientTimeout(total=30)
+            self.session = aiohttp.ClientSession(connector=connector, timeout=timeout)
+        return self.session
     
-    def get_token(self):
+    async def api_request(self, method, endpoint, headers=None, json_data=None, retries=3):
+        session = await self.get_session()
+        url = f"{self.base_url}{endpoint}"
+        
+        if headers is None:
+            headers = {
+                "Authorization": f"Bot {self.bot_token}",
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+            }
+        
+        for attempt in range(retries):
+            try:
+                async with session.request(method, url, headers=headers, json=json_data) as response:
+                    if response.status == 429:
+                        data = await response.json()
+                        retry_after = data.get('retry_after', 1)
+                        await asyncio.sleep(retry_after)
+                        continue
+                    if response.status == 403:
+                        self.print_error("Bot doesn't have permission!")
+                        return response
+                    return response
+            except Exception as e:
+                if attempt == retries - 1:
+                    raise
+                await asyncio.sleep(1 * (attempt + 1))
+    
+    async def get_token(self):
         self.clear_screen()
         self.center_logo()
         print()
-        self.center_text(Fore.CYAN + "╔═══════════════════════════════════════════╗")
-        self.center_text(Fore.CYAN + "║         ENTER BOT TOKEN                 ║")
-        self.center_text(Fore.CYAN + "╚═══════════════════════════════════════════╝")
+        self.center_text(Fore.CYAN + "╔═══════════════════════════════════════════════════════════════════════════════╗")
+        self.center_text(Fore.CYAN + "║                           ENTER BOT TOKEN                                  ║")
+        self.center_text(Fore.CYAN + "╚═══════════════════════════════════════════════════════════════════════════════╝")
         print()
-        self.center_text(Fore.YELLOW + "┌─────────────────────────────────────────┐")
-        self.center_text(Fore.YELLOW + "│  Paste your Bot Token and press Enter  │")
-        self.center_text(Fore.YELLOW + "└─────────────────────────────────────────┘")
+        self.center_text(Fore.YELLOW + "Paste your Bot Token and press Enter")
         print()
-        print(Fore.GREEN + " " * 38 + "➜ ", end="")
+        print(Fore.GREEN + " " * 38 + ">>> ", end="")
         self.bot_token = input().strip()
-        
-        # Test token
-        self.test_token()
+        await self.test_token()
     
-    def test_token(self):
+    async def test_token(self):
         self.clear_screen()
         self.center_logo()
         self.print_working()
         print()
         
-        headers = {
-            "Authorization": f"Bot {self.bot_token}",
-            "User-Agent": "Mozilla/5.0"
-        }
-        
         try:
-            response = requests.get(f"{self.base_url}/users/@me", headers=headers, timeout=10)
-            if response.status_code == 200:
-                user_data = response.json()
-                self.print_success(f"Bot Connected: {user_data.get('username', 'Unknown')}#{user_data.get('discriminator', '0000')}")
+            response = await self.api_request("GET", "/users/@me")
+            if response.status == 200:
+                user_data = await response.json()
+                self.print_success(f"Bot Connected: {user_data.get('username', 'Unknown')}")
                 print()
                 self.center_text(Fore.YELLOW + "Press any key to continue...")
                 input()
             else:
-                self.print_error(f"Invalid Token! Status: {response.status_code}")
+                self.print_error(f"Invalid Token! Status: {response.status}")
                 print()
                 self.center_text(Fore.YELLOW + "Press any key to try again...")
                 input()
-                self.get_token()
+                await self.get_token()
         except Exception as e:
             self.print_error(f"Connection Error: {str(e)}")
             print()
             self.center_text(Fore.YELLOW + "Press any key to try again...")
             input()
-            self.get_token()
+            await self.get_token()
     
-    def get_guilds(self):
+    async def get_guilds(self):
         self.clear_screen()
         self.center_logo()
         print()
-        self.center_text(Fore.CYAN + "╔═══════════════════════════════════════════╗")
-        self.center_text(Fore.CYAN + "║        FETCHING SERVERS...              ║")
-        self.center_text(Fore.CYAN + "╚═══════════════════════════════════════════╝")
+        self.center_text(Fore.CYAN + "╔═══════════════════════════════════════════════════════════════════════════════╗")
+        self.center_text(Fore.CYAN + "║                           FETCHING SERVERS                                ║")
+        self.center_text(Fore.CYAN + "╚═══════════════════════════════════════════════════════════════════════════════╝")
         print()
         
-        headers = {
-            "Authorization": f"Bot {self.bot_token}",
-            "User-Agent": "Mozilla/5.0"
-        }
-        
         try:
-            response = requests.get(f"{self.base_url}/users/@me/guilds", headers=headers, timeout=10)
+            response = await self.api_request("GET", "/users/@me/guilds")
             
-            if response.status_code == 200:
-                guilds_data = response.json()
+            if response.status == 200:
+                guilds_data = await response.json()
                 self.guilds = {}
                 
-                self.center_text(Fore.MAGENTA + "╔═══════════════════════════════════════════╗")
-                self.center_text(Fore.MAGENTA + "║         AVAILABLE SERVERS               ║")
-                self.center_text(Fore.MAGENTA + "╚═══════════════════════════════════════════╝")
+                self.center_text(Fore.MAGENTA + "╔═══════════════════════════════════════════════════════════════════════════════╗")
+                self.center_text(Fore.MAGENTA + "║                           AVAILABLE SERVERS                                ║")
+                self.center_text(Fore.MAGENTA + "╚═══════════════════════════════════════════════════════════════════════════════╝")
                 print()
                 
                 for index, guild in enumerate(guilds_data, start=1):
@@ -168,15 +205,12 @@ class _3zFTool:
                     self.center_text(Fore.GREEN + f"[{index}] {guild_name} (ID: {guild_id})")
                 
                 print()
-                self.center_text(Fore.YELLOW + "┌─────────────────────────────────────────┐")
-                self.center_text(Fore.YELLOW + "│  Enter number to select server        │")
-                self.center_text(Fore.YELLOW + "└─────────────────────────────────────────┘")
+                self.center_text(Fore.YELLOW + "┌─────────────────────────────────────────────────────────────────────────────────┐")
+                self.center_text(Fore.YELLOW + "│                    Enter number to select server                             │")
+                self.center_text(Fore.YELLOW + "└─────────────────────────────────────────────────────────────────────────────────┘")
                 print()
             else:
-                self.print_error(f"Failed to fetch servers! Status: {response.status_code}")
-                print()
-                if response.status_code == 403:
-                    self.print_error("Bot doesn't have permission to view servers!")
+                self.print_error(f"Failed to fetch servers! Status: {response.status}")
                 input()
                 sys.exit(0)
         except Exception as e:
@@ -184,9 +218,9 @@ class _3zFTool:
             input()
             sys.exit(0)
     
-    def select_guild(self):
+    async def select_guild(self):
         while True:
-            print(Fore.GREEN + " " * 38 + "➜ Select Server: ", end="")
+            print(Fore.GREEN + " " * 38 + ">>> Select Server: ", end="")
             choice = input().strip()
             
             if choice in self.guilds:
@@ -204,82 +238,50 @@ class _3zFTool:
                 self.print_error("Invalid choice! Try again.")
                 print()
     
-    def check_permissions(self):
-        """Check if bot has admin permissions"""
-        headers = {
-            "Authorization": f"Bot {self.bot_token}",
-            "User-Agent": "Mozilla/5.0"
-        }
-        
-        try:
-            response = requests.get(
-                f"{self.base_url}/guilds/{self.selected_guild_id}/members/@me",
-                headers=headers,
-                timeout=10
-            )
-            
-            if response.status_code == 200:
-                member_data = response.json()
-                permissions = member_data.get('permissions', '0')
-                # Check if has admin (8) or manage channels (16) permissions
-                perm_int = int(permissions)
-                if perm_int & 8 or perm_int & 16:  # ADMIN or MANAGE_CHANNELS
-                    return True
-                else:
-                    self.print_error("Bot doesn't have required permissions!")
-                    self.print_info("Bot needs: Administrator or Manage Channels permission")
-                    return False
-            else:
-                self.print_error(f"Failed to check permissions! Status: {response.status_code}")
-                return False
-        except Exception as e:
-            self.print_error(f"Error checking permissions: {str(e)}")
-            return False
-    
-    def main_menu(self):
+    async def main_menu(self):
         while True:
             self.clear_screen()
             self.center_logo()
             
-            self.center_text(Fore.CYAN + "╔═══════════════════════════════════════════╗")
-            self.center_text(Fore.CYAN + "║           🚀 MAIN MENU                  ║")
-            self.center_text(Fore.CYAN + "╚═══════════════════════════════════════════╝")
+            self.center_text(Fore.CYAN + "╔═══════════════════════════════════════════════════════════════════════════════╗")
+            self.center_text(Fore.CYAN + "║                               MAIN MENU                                    ║")
+            self.center_text(Fore.CYAN + "╚═══════════════════════════════════════════════════════════════════════════════╝")
             print()
             
             menu = [
-                "  [1]  Create Rooms    انشاء رومات",
-                "  [2]  Delete Rooms    حذف رومات",
-                "  [3]  Delete Roles    حذف رتب",
-                "  [4]  Ban User        باند",
-                "  [5]  Kick User       طرد",
-                "  [6]  Spam Rooms      سبام",
-                "  [7]  Give Admin      رفع مشرف",
-                "  [0]  Exit            خروج"
+                "  [1]  Create Rooms",
+                "  [2]  Delete Rooms",
+                "  [3]  Delete Roles",
+                "  [4]  Ban User",
+                "  [5]  Kick User",
+                "  [6]  Spam Rooms",
+                "  [7]  Give Admin",
+                "  [0]  Exit"
             ]
             
             for item in menu:
                 self.center_text(Fore.YELLOW + item)
             
             print()
-            self.center_text(Fore.GREEN + f"➜ Server ID: {self.selected_guild_id}")
+            self.center_text(Fore.GREEN + f"Server ID: {self.selected_guild_id}")
             print()
-            print(Fore.CYAN + " " * 38 + "➜ Choose Option: ", end="")
+            print(Fore.CYAN + " " * 38 + ">>> Choose Option: ", end="")
             choice = input().strip()
             
             if choice == "1":
-                self.create_rooms()
+                await self.create_rooms()
             elif choice == "2":
-                self.delete_rooms()
+                await self.delete_rooms()
             elif choice == "3":
-                self.delete_roles()
+                await self.delete_roles()
             elif choice == "4":
-                self.ban_user()
+                await self.ban_user()
             elif choice == "5":
-                self.kick_user()
+                await self.kick_user()
             elif choice == "6":
-                self.spam_rooms()
+                await self.spam_rooms()
             elif choice == "7":
-                self.give_admin()
+                await self.give_admin()
             elif choice == "0":
                 self.print_info("Goodbye!")
                 sys.exit(0)
@@ -287,19 +289,14 @@ class _3zFTool:
                 self.print_error("Invalid option!")
                 time.sleep(1)
     
-    def create_rooms(self):
+    async def create_rooms(self):
         self.clear_screen()
         self.center_logo()
-        self.center_text(Fore.GREEN + "╔═══════════════════════════════════════════╗")
-        self.center_text(Fore.GREEN + "║        CREATE ROOMS - انشاء رومات       ║")
-        self.center_text(Fore.GREEN + "╚═══════════════════════════════════════════╝")
+        self.center_text(Fore.GREEN + "╔═══════════════════════════════════════════════════════════════════════════════╗")
+        self.center_text(Fore.GREEN + "║                             CREATE ROOMS                                   ║")
+        self.center_text(Fore.GREEN + "╚═══════════════════════════════════════════════════════════════════════════════╝")
         
-        # Check permissions first
-        if not self.check_permissions():
-            input()
-            return
-        
-        room_names = self.get_multiple_inputs("Enter room names (one per line):")
+        room_names = self.get_multiple_inputs_with_count("Enter room names (one per line):")
         
         if len(room_names) == 0:
             self.print_error("No room names entered!")
@@ -310,266 +307,202 @@ class _3zFTool:
         self.print_info(f"Creating {len(room_names)} rooms...")
         print()
         
-        headers = {
-            "Authorization": f"Bot {self.bot_token}",
-            "User-Agent": "Mozilla/5.0"
-        }
-        
         success = 0
         failed = 0
-        errors = []
+        semaphore = asyncio.Semaphore(100)
+        progress_lock = asyncio.Lock()
         
-        for i, room_name in enumerate(room_names):
-            data = {
-                "name": room_name,
-                "type": 0  # Text channel
-            }
-            
-            try:
-                response = requests.post(
-                    f"{self.base_url}/guilds/{self.selected_guild_id}/channels",
-                    headers=headers,
-                    json=data,
-                    timeout=10
-                )
-                
-                if response.status_code in [200, 201]:
-                    success += 1
-                else:
-                    failed += 1
-                    errors.append(f"{room_name}: {response.status_code}")
-                    
-                    # Show specific error
-                    if response.status_code == 403:
-                        self.print_error("Bot doesn't have permission to create channels!")
-                        break
-                    elif response.status_code == 429:
-                        self.print_error("Rate limited! Waiting 5 seconds...")
-                        time.sleep(5)
-                        # Retry
-                        response = requests.post(
-                            f"{self.base_url}/guilds/{self.selected_guild_id}/channels",
-                            headers=headers,
-                            json=data,
-                            timeout=10
-                        )
-                        if response.status_code in [200, 201]:
+        async def create_room(room_name):
+            nonlocal success, failed
+            async with semaphore:
+                data = {"name": room_name, "type": 0}
+                try:
+                    response = await self.api_request("POST", f"/guilds/{self.selected_guild_id}/channels", json_data=data)
+                    async with progress_lock:
+                        if response.status in [200, 201]:
                             success += 1
-                            failed -= 1
-                            
-            except requests.exceptions.Timeout:
-                failed += 1
-                errors.append(f"{room_name}: Timeout")
-            except Exception as e:
-                failed += 1
-                errors.append(f"{room_name}: {str(e)}")
-            
-            print("\r" + " " * 60, end="")
-            print(f"\r✅ Created: {success}  |  ❌ Failed: {failed}  |  Room: {room_name}", end="")
+                        else:
+                            failed += 1
+                except:
+                    async with progress_lock:
+                        failed += 1
         
-        print("\n")
-        self.print_success(f"{success} rooms created successfully!")
+        tasks = [create_room(name) for name in room_names]
+        
+        # Show progress
+        import asyncio as aio
+        for i in range(0, len(tasks), 50):
+            batch = tasks[i:i+50]
+            await asyncio.gather(*batch)
+            print(f"\r{Fore.GREEN}[✓] Created: {success}  |  {Fore.RED}[✗] Failed: {failed}{Style.RESET_ALL}", end="")
+        
+        print()
+        self.print_success(f"Created: {success} rooms")
         if failed > 0:
             self.print_info(f"Failed: {failed} rooms")
-            if errors:
-                self.print_info("Errors:")
-                for err in errors[:5]:  # Show first 5 errors
-                    self.center_text(Fore.RED + f"  - {err}")
         input()
     
-    def delete_rooms(self):
+    async def delete_rooms(self):
         self.clear_screen()
         self.center_logo()
-        self.center_text(Fore.RED + "╔═══════════════════════════════════════════╗")
-        self.center_text(Fore.RED + "║        DELETE ROOMS - حذف رومات         ║")
-        self.center_text(Fore.RED + "╚═══════════════════════════════════════════╝")
+        self.center_text(Fore.RED + "╔═══════════════════════════════════════════════════════════════════════════════╗")
+        self.center_text(Fore.RED + "║                             DELETE ROOMS                                   ║")
+        self.center_text(Fore.RED + "╚═══════════════════════════════════════════════════════════════════════════════╝")
         print()
-        
-        if not self.check_permissions():
-            input()
-            return
         
         self.print_info("Fetching channels...")
         print()
         
-        headers = {
-            "Authorization": f"Bot {self.bot_token}",
-            "User-Agent": "Mozilla/5.0"
-        }
-        
         try:
-            response = requests.get(
-                f"{self.base_url}/guilds/{self.selected_guild_id}/channels",
-                headers=headers,
-                timeout=10
-            )
+            response = await self.api_request("GET", f"/guilds/{self.selected_guild_id}/channels")
             
-            if response.status_code == 200:
-                channels = response.json()
+            if response.status == 200:
+                channels = await response.json()
                 channel_ids = []
-                channel_names = []
                 
                 for channel in channels:
-                    if channel["type"] in [0, 2]:  # Text or Voice channel
+                    if channel["type"] in [0, 2]:
                         channel_ids.append(channel["id"])
-                        channel_names.append(channel.get("name", "Unknown"))
                 
                 if not channel_ids:
-                    self.print_error("No channels found to delete!")
+                    self.print_error("No channels found!")
                     input()
                     return
                 
-                self.print_info(f"Found {len(channel_ids)} channels to delete.")
+                self.print_info(f"Found {len(channel_ids)} channels")
                 print()
                 
-                # Confirm deletion
-                self.center_text(Fore.YELLOW + f"⚠️ Are you sure you want to delete {len(channel_ids)} channels?")
-                self.center_text(Fore.YELLOW + "Type 'yes' to confirm: ", end="")
+                self.print_warning(f"Delete {len(channel_ids)} channels? (yes/no): ", end="")
                 confirm = input().strip().lower()
                 
                 if confirm != 'yes':
-                    self.print_info("Deletion cancelled.")
+                    self.print_info("Cancelled.")
                     input()
                     return
                 
-                del_ok = 0
-                del_fail = 0
+                success = 0
+                failed = 0
+                semaphore = asyncio.Semaphore(100)
+                progress_lock = asyncio.Lock()
                 
-                for cid in channel_ids:
-                    try:
-                        del_response = requests.delete(
-                            f"{self.base_url}/channels/{cid}",
-                            headers=headers,
-                            timeout=10
-                        )
-                        if del_response.status_code in [200, 204]:
-                            del_ok += 1
-                        else:
-                            del_fail += 1
-                    except:
-                        del_fail += 1
-                    
-                    print("\r" + " " * 60, end="")
-                    print(f"\r✅ Deleted: {del_ok}  |  ❌ Failed: {del_fail}", end="")
+                async def delete_channel(cid):
+                    nonlocal success, failed
+                    async with semaphore:
+                        try:
+                            response = await self.api_request("DELETE", f"/channels/{cid}")
+                            async with progress_lock:
+                                if response.status in [200, 204]:
+                                    success += 1
+                                else:
+                                    failed += 1
+                        except:
+                            async with progress_lock:
+                                failed += 1
                 
-                print("\n")
-                self.print_success(f"{del_ok} rooms deleted successfully!")
-                if del_fail > 0:
-                    self.print_info(f"Failed: {del_fail} rooms")
+                tasks = [delete_channel(cid) for cid in channel_ids]
+                
+                import asyncio as aio
+                for i in range(0, len(tasks), 50):
+                    batch = tasks[i:i+50]
+                    await asyncio.gather(*batch)
+                    print(f"\r{Fore.GREEN}[✓] Deleted: {success}  |  {Fore.RED}[✗] Failed: {failed}{Style.RESET_ALL}", end="")
+                
+                print()
+                self.print_success(f"Deleted: {success} rooms")
+                if failed > 0:
+                    self.print_info(f"Failed: {failed} rooms")
             else:
-                self.print_error(f"Failed to fetch channels! Status: {response.status_code}")
-                if response.status_code == 403:
-                    self.print_error("Bot doesn't have permission to view channels!")
+                self.print_error(f"Failed! Status: {response.status}")
         except Exception as e:
             self.print_error(f"Error: {str(e)}")
         
         input()
     
-    def delete_roles(self):
+    async def delete_roles(self):
         self.clear_screen()
         self.center_logo()
-        self.center_text(Fore.RED + "╔═══════════════════════════════════════════╗")
-        self.center_text(Fore.RED + "║         DELETE ROLES - حذف رتب          ║")
-        self.center_text(Fore.RED + "╚═══════════════════════════════════════════╝")
+        self.center_text(Fore.RED + "╔═══════════════════════════════════════════════════════════════════════════════╗")
+        self.center_text(Fore.RED + "║                              DELETE ROLES                                  ║")
+        self.center_text(Fore.RED + "╚═══════════════════════════════════════════════════════════════════════════════╝")
         print()
-        
-        if not self.check_permissions():
-            input()
-            return
         
         self.print_info("Fetching roles...")
         print()
         
-        headers = {
-            "Authorization": f"Bot {self.bot_token}",
-            "User-Agent": "Mozilla/5.0"
-        }
-        
         try:
-            response = requests.get(
-                f"{self.base_url}/guilds/{self.selected_guild_id}/roles",
-                headers=headers,
-                timeout=10
-            )
+            response = await self.api_request("GET", f"/guilds/{self.selected_guild_id}/roles")
             
-            if response.status_code == 200:
-                roles = response.json()
+            if response.status == 200:
+                roles = await response.json()
                 role_ids = []
-                role_names = []
                 
                 for role in roles:
-                    if role["id"] != self.selected_guild_id:  # Don't delete @everyone
+                    if role["id"] != self.selected_guild_id:
                         role_ids.append(role["id"])
-                        role_names.append(role.get("name", "Unknown"))
                 
                 if not role_ids:
-                    self.print_error("No roles found to delete!")
+                    self.print_error("No roles found!")
                     input()
                     return
                 
-                self.print_info(f"Found {len(role_ids)} roles to delete.")
+                self.print_info(f"Found {len(role_ids)} roles")
                 print()
                 
-                # Show roles that will be deleted
-                self.center_text(Fore.YELLOW + "Roles to delete:")
-                for i, name in enumerate(role_names[:10]):
-                    self.center_text(Fore.YELLOW + f"  - {name}")
-                if len(role_names) > 10:
-                    self.center_text(Fore.YELLOW + f"  ... and {len(role_names) - 10} more")
-                print()
-                
-                # Confirm deletion
-                self.center_text(Fore.YELLOW + "⚠️ Are you sure you want to delete these roles?")
-                self.center_text(Fore.YELLOW + "Type 'yes' to confirm: ", end="")
+                self.print_warning(f"Delete {len(role_ids)} roles? (yes/no): ", end="")
                 confirm = input().strip().lower()
                 
                 if confirm != 'yes':
-                    self.print_info("Deletion cancelled.")
+                    self.print_info("Cancelled.")
                     input()
                     return
                 
-                del_ok = 0
-                del_fail = 0
+                success = 0
+                failed = 0
+                semaphore = asyncio.Semaphore(100)
+                progress_lock = asyncio.Lock()
                 
-                for rid in role_ids:
-                    try:
-                        del_response = requests.delete(
-                            f"{self.base_url}/guilds/{self.selected_guild_id}/roles/{rid}",
-                            headers=headers,
-                            timeout=10
-                        )
-                        if del_response.status_code in [200, 204]:
-                            del_ok += 1
-                        else:
-                            del_fail += 1
-                    except:
-                        del_fail += 1
-                    
-                    print("\r" + " " * 60, end="")
-                    print(f"\r✅ Deleted: {del_ok}  |  ❌ Failed: {del_fail}", end="")
+                async def delete_role(rid):
+                    nonlocal success, failed
+                    async with semaphore:
+                        try:
+                            response = await self.api_request("DELETE", f"/guilds/{self.selected_guild_id}/roles/{rid}")
+                            async with progress_lock:
+                                if response.status in [200, 204]:
+                                    success += 1
+                                else:
+                                    failed += 1
+                        except:
+                            async with progress_lock:
+                                failed += 1
                 
-                print("\n")
-                self.print_success(f"{del_ok} roles deleted successfully!")
-                if del_fail > 0:
-                    self.print_info(f"Failed: {del_fail} roles")
+                tasks = [delete_role(rid) for rid in role_ids]
+                
+                import asyncio as aio
+                for i in range(0, len(tasks), 50):
+                    batch = tasks[i:i+50]
+                    await asyncio.gather(*batch)
+                    print(f"\r{Fore.GREEN}[✓] Deleted: {success}  |  {Fore.RED}[✗] Failed: {failed}{Style.RESET_ALL}", end="")
+                
+                print()
+                self.print_success(f"Deleted: {success} roles")
+                if failed > 0:
+                    self.print_info(f"Failed: {failed} roles")
             else:
-                self.print_error(f"Failed to fetch roles! Status: {response.status_code}")
-                if response.status_code == 403:
-                    self.print_error("Bot doesn't have permission to manage roles!")
+                self.print_error(f"Failed! Status: {response.status}")
         except Exception as e:
             self.print_error(f"Error: {str(e)}")
         
         input()
     
-    def ban_user(self):
+    async def ban_user(self):
         self.clear_screen()
         self.center_logo()
-        self.center_text(Fore.RED + "╔═══════════════════════════════════════════╗")
-        self.center_text(Fore.RED + "║           BAN USER - باند               ║")
-        self.center_text(Fore.RED + "╚═══════════════════════════════════════════╝")
+        self.center_text(Fore.RED + "╔═══════════════════════════════════════════════════════════════════════════════╗")
+        self.center_text(Fore.RED + "║                               BAN USER                                    ║")
+        self.center_text(Fore.RED + "╚═══════════════════════════════════════════════════════════════════════════════╝")
         print()
         
-        print(Fore.CYAN + " " * 38 + "➜ User ID to ban: ", end="")
+        print(Fore.CYAN + " " * 38 + ">>> User ID to ban: ", end="")
         user_id = input().strip()
         
         if not user_id:
@@ -578,44 +511,31 @@ class _3zFTool:
             return
         
         print()
-        self.print_info(f"Attempting to ban user: {user_id}")
+        self.print_info(f"Banning user: {user_id}")
         print()
         
-        headers = {
-            "Authorization": f"Bot {self.bot_token}",
-            "User-Agent": "Mozilla/5.0"
-        }
-        
-        data = {"delete_message_days": 7}
-        
         try:
-            response = requests.put(
-                f"{self.base_url}/guilds/{self.selected_guild_id}/bans/{user_id}",
-                headers=headers,
-                json=data,
-                timeout=10
-            )
+            data = {"delete_message_days": 7}
+            response = await self.api_request("PUT", f"/guilds/{self.selected_guild_id}/bans/{user_id}", json_data=data)
             
-            if response.status_code in [200, 204]:
-                self.print_success(f"User {user_id} banned successfully!")
+            if response.status in [200, 204]:
+                self.print_success(f"User {user_id} banned!")
             else:
-                self.print_error(f"Failed to ban user! Status: {response.status_code}")
-                if response.status_code == 403:
-                    self.print_error("Bot doesn't have permission to ban users!")
+                self.print_error(f"Failed! Status: {response.status}")
         except Exception as e:
             self.print_error(f"Error: {str(e)}")
         
         input()
     
-    def kick_user(self):
+    async def kick_user(self):
         self.clear_screen()
         self.center_logo()
-        self.center_text(Fore.YELLOW + "╔═══════════════════════════════════════════╗")
-        self.center_text(Fore.YELLOW + "║           KICK USER - طرد               ║")
-        self.center_text(Fore.YELLOW + "╚═══════════════════════════════════════════╝")
+        self.center_text(Fore.YELLOW + "╔═══════════════════════════════════════════════════════════════════════════════╗")
+        self.center_text(Fore.YELLOW + "║                               KICK USER                                    ║")
+        self.center_text(Fore.YELLOW + "╚═══════════════════════════════════════════════════════════════════════════════╝")
         print()
         
-        print(Fore.CYAN + " " * 38 + "➜ User ID to kick: ", end="")
+        print(Fore.CYAN + " " * 38 + ">>> User ID to kick: ", end="")
         user_id = input().strip()
         
         if not user_id:
@@ -624,44 +544,29 @@ class _3zFTool:
             return
         
         print()
-        self.print_info(f"Attempting to kick user: {user_id}")
+        self.print_info(f"Kicking user: {user_id}")
         print()
         
-        headers = {
-            "Authorization": f"Bot {self.bot_token}",
-            "User-Agent": "Mozilla/5.0"
-        }
-        
         try:
-            response = requests.delete(
-                f"{self.base_url}/guilds/{self.selected_guild_id}/members/{user_id}",
-                headers=headers,
-                timeout=10
-            )
+            response = await self.api_request("DELETE", f"/guilds/{self.selected_guild_id}/members/{user_id}")
             
-            if response.status_code in [200, 204]:
-                self.print_success(f"User {user_id} kicked successfully!")
+            if response.status in [200, 204]:
+                self.print_success(f"User {user_id} kicked!")
             else:
-                self.print_error(f"Failed to kick user! Status: {response.status_code}")
-                if response.status_code == 403:
-                    self.print_error("Bot doesn't have permission to kick users!")
+                self.print_error(f"Failed! Status: {response.status}")
         except Exception as e:
             self.print_error(f"Error: {str(e)}")
         
         input()
     
-    def spam_rooms(self):
+    async def spam_rooms(self):
         self.clear_screen()
         self.center_logo()
-        self.center_text(Fore.CYAN + "╔═══════════════════════════════════════════╗")
-        self.center_text(Fore.CYAN + "║           SPAM ROOMS - سبام             ║")
-        self.center_text(Fore.CYAN + "╚═══════════════════════════════════════════╝")
+        self.center_text(Fore.CYAN + "╔═══════════════════════════════════════════════════════════════════════════════╗")
+        self.center_text(Fore.CYAN + "║                              SPAM ROOMS                                   ║")
+        self.center_text(Fore.CYAN + "╚═══════════════════════════════════════════════════════════════════════════════╝")
         
-        if not self.check_permissions():
-            input()
-            return
-        
-        spam_messages = self.get_multiple_inputs("Enter spam messages (one per line):")
+        spam_messages = self.get_multiple_inputs_with_count("Enter spam messages (one per line):")
         
         if len(spam_messages) == 0:
             self.print_error("No messages entered!")
@@ -669,97 +574,73 @@ class _3zFTool:
             return
         
         print()
-        print(Fore.CYAN + " " * 38 + "➜ Messages per room: ", end="")
-        msgs_str = input().strip()
-        
-        try:
-            msgs_per_room = int(msgs_str)
-            if msgs_per_room <= 0:
-                raise ValueError
-        except:
-            self.print_error("Invalid number!")
-            input()
-            return
-        
-        print()
         self.print_info("Fetching text channels...")
         print()
         
-        headers = {
-            "Authorization": f"Bot {self.bot_token}",
-            "User-Agent": "Mozilla/5.0"
-        }
-        
         try:
-            response = requests.get(
-                f"{self.base_url}/guilds/{self.selected_guild_id}/channels",
-                headers=headers,
-                timeout=10
-            )
+            response = await self.api_request("GET", f"/guilds/{self.selected_guild_id}/channels")
             
-            if response.status_code == 200:
-                channels = response.json()
+            if response.status == 200:
+                channels = await response.json()
                 text_channel_ids = []
                 
                 for channel in channels:
-                    if channel["type"] == 0:  # Text channel
+                    if channel["type"] == 0:
                         text_channel_ids.append(channel["id"])
                 
-                if len(text_channel_ids) == 0:
+                if not text_channel_ids:
                     self.print_error("No text channels found!")
                     input()
                     return
                 
-                self.print_info(f"Found {len(text_channel_ids)} text channels.")
+                self.print_info(f"Found {len(text_channel_ids)} text channels")
                 print()
                 
                 total_sent = 0
+                semaphore = asyncio.Semaphore(200)
+                progress_lock = asyncio.Lock()
                 
-                for cid in text_channel_ids:
-                    for _ in range(msgs_per_room):
+                async def send_message(cid, msg):
+                    nonlocal total_sent
+                    async with semaphore:
                         try:
-                            txt = random.choice(spam_messages)
-                            data = {"content": txt}
-                            send_response = requests.post(
-                                f"{self.base_url}/channels/{cid}/messages",
-                                headers=headers,
-                                json=data,
-                                timeout=5
-                            )
-                            if send_response.status_code in [200, 201]:
-                                total_sent += 1
-                            elif send_response.status_code == 429:
-                                # Rate limited
-                                retry_after = send_response.json().get('retry_after', 1)
-                                time.sleep(retry_after)
+                            data = {"content": msg}
+                            response = await self.api_request("POST", f"/channels/{cid}/messages", json_data=data)
+                            async with progress_lock:
+                                if response.status in [200, 201]:
+                                    total_sent += 1
                         except:
                             pass
-                        
-                        print("\r" + " " * 60, end="")
-                        print(f"\r✅ Sent: {total_sent} messages", end="")
                 
-                print("\n")
-                self.print_success(f"{total_sent} messages sent to {len(text_channel_ids)} rooms!")
+                tasks = []
+                for cid in text_channel_ids:
+                    for msg in spam_messages:
+                        tasks.append(send_message(cid, msg))
+                
+                import asyncio as aio
+                for i in range(0, len(tasks), 100):
+                    batch = tasks[i:i+100]
+                    await asyncio.gather(*batch)
+                    print(f"\r{Fore.GREEN}[✓] Sent: {total_sent} messages{Style.RESET_ALL}", end="")
+                
+                print()
+                self.print_success(f"Sent: {total_sent} messages to {len(text_channel_ids)} rooms!")
             else:
-                self.print_error(f"Failed to fetch channels! Status: {response.status_code}")
+                self.print_error(f"Failed! Status: {response.status}")
         except Exception as e:
             self.print_error(f"Error: {str(e)}")
         
         input()
     
-    def give_admin(self):
+    async def give_admin(self):
         self.clear_screen()
         self.center_logo()
-        self.center_text(Fore.MAGENTA + "╔═══════════════════════════════════════════╗")
-        self.center_text(Fore.MAGENTA + "║        GIVE ADMIN - رفع مشرف            ║")
-        self.center_text(Fore.MAGENTA + "╚═══════════════════════════════════════════╝")
+        self.center_text(Fore.MAGENTA + "╔═══════════════════════════════════════════════════════════════════════════════╗")
+        self.center_text(Fore.MAGENTA + "║                              GIVE ADMIN                                   ║")
+        self.center_text(Fore.MAGENTA + "╚═══════════════════════════════════════════════════════════════════════════════╝")
         print()
         
-        if not self.check_permissions():
-            input()
-            return
-        
-        print(Fore.CYAN + " " * 38 + "➜ User ID to promote: ", end="")
+        print(Fore.CYAN + " " * 38 + ">>> User ID to promote: ", end="")
         user_id = input().strip()
         
         if not user_id:
@@ -771,13 +652,8 @@ class _3zFTool:
         self.print_info(f"Promoting user: {user_id}")
         print()
         
-        headers = {
-            "Authorization": f"Bot {self.bot_token}",
-            "User-Agent": "Mozilla/5.0"
-        }
-        
         try:
-            # Create admin role
+            # Create role
             role_data = {
                 "name": "3zF-Admin",
                 "permissions": "1071698660929",
@@ -786,58 +662,47 @@ class _3zFTool:
                 "mentionable": False
             }
             
-            role_response = requests.post(
-                f"{self.base_url}/guilds/{self.selected_guild_id}/roles",
-                headers=headers,
-                json=role_data,
-                timeout=10
-            )
+            response = await self.api_request("POST", f"/guilds/{self.selected_guild_id}/roles", json_data=role_data)
             
-            if role_response.status_code in [200, 201]:
-                role = role_response.json()
+            if response.status in [200, 201]:
+                role = await response.json()
                 role_id = role["id"]
                 
-                self.print_info(f"Role created! ID: {role_id}")
+                self.print_success(f"Role created! ID: {role_id}")
                 print()
                 
-                # Assign role to user
+                # Assign role
                 assign_data = {"roles": [role_id]}
-                assign_response = requests.patch(
-                    f"{self.base_url}/guilds/{self.selected_guild_id}/members/{user_id}",
-                    headers=headers,
-                    json=assign_data,
-                    timeout=10
-                )
+                assign_response = await self.api_request("PATCH", f"/guilds/{self.selected_guild_id}/members/{user_id}", json_data=assign_data)
                 
-                if assign_response.status_code in [200, 204]:
-                    self.print_success(f"User {user_id} is now an admin! 🚀")
+                if assign_response.status in [200, 204]:
+                    self.print_success(f"User {user_id} is now admin!")
                 else:
-                    self.print_error(f"Role created but failed to assign! Status: {assign_response.status_code}")
-                    if assign_response.status_code == 403:
-                        self.print_error("Bot can't assign role! Check bot's role hierarchy.")
+                    self.print_error(f"Role created but failed to assign! Status: {assign_response.status}")
             else:
-                self.print_error(f"Failed to create admin role! Status: {role_response.status_code}")
-                if role_response.status_code == 403:
-                    self.print_error("Bot doesn't have permission to create roles!")
+                self.print_error(f"Failed to create role! Status: {response.status}")
         except Exception as e:
             self.print_error(f"Error: {str(e)}")
         
         input()
     
-    def run(self):
+    async def run(self):
         try:
-            self.get_token()
-            self.get_guilds()
-            self.select_guild()
-            self.main_menu()
+            await self.get_token()
+            await self.get_guilds()
+            await self.select_guild()
+            await self.main_menu()
         except KeyboardInterrupt:
-            print("\n")
+            print()
             self.print_info("Exiting...")
             sys.exit(0)
         except Exception as e:
             self.print_error(f"Fatal Error: {str(e)}")
             input()
+        finally:
+            if self.session:
+                await self.session.close()
 
 if __name__ == "__main__":
     tool = _3zFTool()
-    tool.run()
+    asyncio.run(tool.run())
