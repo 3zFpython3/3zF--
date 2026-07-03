@@ -1,8 +1,9 @@
-import requests
-import json
 import os
+import sys
+import json
 import time
 import random
+import requests
 
 os.system('cls' if os.name == 'nt' else 'clear')
 
@@ -14,51 +15,52 @@ print("""
 ██████╔╝███████╗██║
 ╚═════╝ ╚══════╝╚═╝
 """)
-print("="*50)
-print("        3zF TOOL v2.0 | BY 3Z")
-print("="*50)
+print("="*60)
+print("             3zF TOOL v2.0 | BY 3Z")
+print("="*60)
 print()
 
-# ============== GET TOKEN ==============
+# ===== TOKEN =====
 print("[?] Enter Bot Token: ", end="")
 TOKEN = input().strip()
 
 headers = {
     "Authorization": f"Bot {TOKEN}",
-    "User-Agent": "Mozilla/5.0"
+    "User-Agent": "Mozilla/5.0",
+    "Content-Type": "application/json"
 }
 
-# ============== TEST TOKEN ==============
+# ===== TEST TOKEN =====
 print("\n[*] Testing Token...")
 try:
     r = requests.get("https://discord.com/api/v10/users/@me", headers=headers)
     if r.status_code == 200:
         user = r.json()
-        print(f"[+] Connected as: {user['username']}")
+        print(f"[+] Connected: {user['username']}")
     else:
-        print(f"[-] Invalid Token! Status: {r.status_code}")
+        print(f"[-] Invalid Token! (Status: {r.status_code})")
         exit()
 except:
     print("[-] Connection Error!")
     exit()
 
-# ============== GET SERVERS ==============
+# ===== GET SERVERS =====
 print("\n[*] Fetching Servers...")
 try:
     r = requests.get("https://discord.com/api/v10/users/@me/guilds", headers=headers)
     if r.status_code == 200:
         guilds = r.json()
         if len(guilds) == 0:
-            print("[-] No servers found! Make sure bot is in a server.")
+            print("[-] Bot is not in any server!")
             exit()
         
         print("\n[+] Available Servers:")
-        print("-"*50)
+        print("-"*60)
         server_list = {}
         for i, g in enumerate(guilds, 1):
             print(f"  [{i}] {g['name']} (ID: {g['id']})")
             server_list[str(i)] = g['id']
-        print("-"*50)
+        print("-"*60)
         
         print("\n[?] Select Server Number: ", end="")
         choice = input().strip()
@@ -68,7 +70,7 @@ try:
             exit()
         
         GUILD_ID = server_list[choice]
-        print(f"[+] Selected Server ID: {GUILD_ID}")
+        print(f"[+] Selected Server: {GUILD_ID}")
         print("\n[+] Press Enter to continue...")
         input()
     else:
@@ -78,7 +80,7 @@ except:
     print("[-] Connection Error!")
     exit()
 
-# ============== MAIN MENU ==============
+# ===== MAIN MENU =====
 while True:
     os.system('cls' if os.name == 'nt' else 'clear')
     
@@ -90,11 +92,11 @@ while True:
 ██████╔╝███████╗██║
 ╚═════╝ ╚══════╝╚═╝
 """)
-    print("="*50)
-    print("        3zF TOOL v2.0 | BY 3Z")
-    print("="*50)
+    print("="*60)
+    print("             3zF TOOL v2.0 | BY 3Z")
+    print("="*60)
     print(f"Server ID: {GUILD_ID}")
-    print("-"*50)
+    print("-"*60)
     print("  [1] Create Rooms")
     print("  [2] Delete Rooms")
     print("  [3] Delete Roles")
@@ -103,15 +105,17 @@ while True:
     print("  [6] Spam Rooms")
     print("  [7] Give Admin")
     print("  [0] Exit")
-    print("-"*50)
+    print("-"*60)
     
     choice = input("[?] Choose Option: ").strip()
     
-    # ============== CREATE ROOMS ==============
+    # =============================================
+    # 1- CREATE ROOMS
+    # =============================================
     if choice == "1":
         os.system('cls' if os.name == 'nt' else 'clear')
         print("\n[+] CREATE ROOMS")
-        print("-"*50)
+        print("-"*60)
         
         rooms = []
         print("[?] Enter room names (type 'done' to finish):")
@@ -141,8 +145,11 @@ while True:
                 final_rooms.append(f"{room}-{i+1}" if copies > 1 else room)
         
         print(f"\n[*] Creating {len(final_rooms)} rooms...")
+        print()
         
         success = 0
+        failed = 0
+        
         for i, room in enumerate(final_rooms):
             data = {"name": room, "type": 0}
             try:
@@ -154,34 +161,51 @@ while True:
                 if r.status_code in [200, 201]:
                     success += 1
                 else:
-                    pass
+                    failed += 1
+                    # Show error once
+                    if failed == 1:
+                        print(f"\n[-] Error {r.status_code}: {r.text[:100]}")
             except:
-                pass
-            print(f"\r[+] Created: {success}/{len(final_rooms)}", end="")
+                failed += 1
+            
+            print(f"\r[+] Created: {success}  |  [-] Failed: {failed}", end="")
         
-        print(f"\n[+] Created {success} rooms!")
+        print(f"\n\n[+] Done! Created: {success}, Failed: {failed}")
         input("\nPress Enter to continue...")
     
-    # ============== DELETE ROOMS ==============
+    # =============================================
+    # 2- DELETE ROOMS
+    # =============================================
     elif choice == "2":
         os.system('cls' if os.name == 'nt' else 'clear')
         print("\n[+] DELETE ROOMS")
-        print("-"*50)
+        print("-"*60)
         
         print("[*] Fetching channels...")
         try:
             r = requests.get(f"https://discord.com/api/v10/guilds/{GUILD_ID}/channels", headers=headers)
             if r.status_code == 200:
                 channels = r.json()
-                channel_ids = [c['id'] for c in channels if c['type'] in [0, 2]]
+                channel_ids = []
+                channel_names = []
+                
+                for c in channels:
+                    if c['type'] in [0, 2]:  # Text or Voice
+                        channel_ids.append(c['id'])
+                        channel_names.append(c.get('name', 'Unknown'))
                 
                 if not channel_ids:
                     print("[-] No channels found!")
                     input("\nPress Enter to continue...")
                     continue
                 
-                print(f"[*] Found {len(channel_ids)} channels")
-                print(f"[?] Delete all {len(channel_ids)} channels? (yes/no): ", end="")
+                print(f"[*] Found {len(channel_ids)} channels:")
+                for i, name in enumerate(channel_names[:10]):
+                    print(f"  - {name}")
+                if len(channel_names) > 10:
+                    print(f"  ... and {len(channel_names)-10} more")
+                
+                print(f"\n[?] Delete all {len(channel_ids)} channels? (yes/no): ", end="")
                 confirm = input().strip().lower()
                 
                 if confirm != "yes":
@@ -190,42 +214,62 @@ while True:
                     continue
                 
                 success = 0
+                failed = 0
+                
                 for i, cid in enumerate(channel_ids):
                     try:
                         r = requests.delete(f"https://discord.com/api/v10/channels/{cid}", headers=headers)
                         if r.status_code in [200, 204]:
                             success += 1
+                        else:
+                            failed += 1
+                            if failed == 1:
+                                print(f"\n[-] Error {r.status_code}")
                     except:
-                        pass
-                    print(f"\r[+] Deleted: {success}/{len(channel_ids)}", end="")
+                        failed += 1
+                    
+                    print(f"\r[+] Deleted: {success}  |  [-] Failed: {failed}", end="")
                 
-                print(f"\n[+] Deleted {success} channels!")
+                print(f"\n\n[+] Done! Deleted: {success}, Failed: {failed}")
             else:
-                print("[-] Failed to fetch channels!")
-        except:
-            print("[-] Error!")
+                print(f"[-] Failed to fetch channels! Status: {r.status_code}")
+        except Exception as e:
+            print(f"[-] Error: {str(e)}")
         input("\nPress Enter to continue...")
     
-    # ============== DELETE ROLES ==============
+    # =============================================
+    # 3- DELETE ROLES
+    # =============================================
     elif choice == "3":
         os.system('cls' if os.name == 'nt' else 'clear')
         print("\n[+] DELETE ROLES")
-        print("-"*50)
+        print("-"*60)
         
         print("[*] Fetching roles...")
         try:
             r = requests.get(f"https://discord.com/api/v10/guilds/{GUILD_ID}/roles", headers=headers)
             if r.status_code == 200:
                 roles = r.json()
-                role_ids = [r['id'] for r in roles if r['id'] != GUILD_ID]
+                role_ids = []
+                role_names = []
+                
+                for role in roles:
+                    if role['id'] != GUILD_ID:  # Don't delete @everyone
+                        role_ids.append(role['id'])
+                        role_names.append(role.get('name', 'Unknown'))
                 
                 if not role_ids:
                     print("[-] No roles found!")
                     input("\nPress Enter to continue...")
                     continue
                 
-                print(f"[*] Found {len(role_ids)} roles")
-                print(f"[?] Delete all {len(role_ids)} roles? (yes/no): ", end="")
+                print(f"[*] Found {len(role_ids)} roles:")
+                for i, name in enumerate(role_names[:10]):
+                    print(f"  - {name}")
+                if len(role_names) > 10:
+                    print(f"  ... and {len(role_names)-10} more")
+                
+                print(f"\n[?] Delete all {len(role_ids)} roles? (yes/no): ", end="")
                 confirm = input().strip().lower()
                 
                 if confirm != "yes":
@@ -234,27 +278,39 @@ while True:
                     continue
                 
                 success = 0
+                failed = 0
+                
                 for i, rid in enumerate(role_ids):
                     try:
-                        r = requests.delete(f"https://discord.com/api/v10/guilds/{GUILD_ID}/roles/{rid}", headers=headers)
+                        r = requests.delete(
+                            f"https://discord.com/api/v10/guilds/{GUILD_ID}/roles/{rid}",
+                            headers=headers
+                        )
                         if r.status_code in [200, 204]:
                             success += 1
+                        else:
+                            failed += 1
+                            if failed == 1:
+                                print(f"\n[-] Error {r.status_code}")
                     except:
-                        pass
-                    print(f"\r[+] Deleted: {success}/{len(role_ids)}", end="")
+                        failed += 1
+                    
+                    print(f"\r[+] Deleted: {success}  |  [-] Failed: {failed}", end="")
                 
-                print(f"\n[+] Deleted {success} roles!")
+                print(f"\n\n[+] Done! Deleted: {success}, Failed: {failed}")
             else:
-                print("[-] Failed to fetch roles!")
-        except:
-            print("[-] Error!")
+                print(f"[-] Failed to fetch roles! Status: {r.status_code}")
+        except Exception as e:
+            print(f"[-] Error: {str(e)}")
         input("\nPress Enter to continue...")
     
-    # ============== BAN USER ==============
+    # =============================================
+    # 4- BAN USER
+    # =============================================
     elif choice == "4":
         os.system('cls' if os.name == 'nt' else 'clear')
         print("\n[+] BAN USER")
-        print("-"*50)
+        print("-"*60)
         
         user_id = input("[?] User ID to ban: ").strip()
         if not user_id:
@@ -273,15 +329,19 @@ while True:
                 print(f"[+] User {user_id} banned!")
             else:
                 print(f"[-] Failed! Status: {r.status_code}")
-        except:
-            print("[-] Error!")
+                if r.status_code == 403:
+                    print("[-] Bot doesn't have permission to ban!")
+        except Exception as e:
+            print(f"[-] Error: {str(e)}")
         input("\nPress Enter to continue...")
     
-    # ============== KICK USER ==============
+    # =============================================
+    # 5- KICK USER
+    # =============================================
     elif choice == "5":
         os.system('cls' if os.name == 'nt' else 'clear')
         print("\n[+] KICK USER")
-        print("-"*50)
+        print("-"*60)
         
         user_id = input("[?] User ID to kick: ").strip()
         if not user_id:
@@ -298,15 +358,19 @@ while True:
                 print(f"[+] User {user_id} kicked!")
             else:
                 print(f"[-] Failed! Status: {r.status_code}")
-        except:
-            print("[-] Error!")
+                if r.status_code == 403:
+                    print("[-] Bot doesn't have permission to kick!")
+        except Exception as e:
+            print(f"[-] Error: {str(e)}")
         input("\nPress Enter to continue...")
     
-    # ============== SPAM ROOMS ==============
+    # =============================================
+    # 6- SPAM ROOMS
+    # =============================================
     elif choice == "6":
         os.system('cls' if os.name == 'nt' else 'clear')
         print("\n[+] SPAM ROOMS")
-        print("-"*50)
+        print("-"*60)
         
         messages = []
         print("[?] Enter messages (type 'done' to finish):")
@@ -344,8 +408,11 @@ while True:
                 
                 print(f"[*] Found {len(text_channels)} text channels")
                 print("[*] Spamming...")
+                print()
                 
                 total = 0
+                failed = 0
+                
                 for cid in text_channels:
                     for _ in range(per_room):
                         msg = random.choice(messages)
@@ -358,22 +425,27 @@ while True:
                             )
                             if r.status_code in [200, 201]:
                                 total += 1
+                            else:
+                                failed += 1
                         except:
-                            pass
-                        print(f"\r[+] Sent: {total} messages", end="")
+                            failed += 1
+                        
+                        print(f"\r[+] Sent: {total}  |  [-] Failed: {failed}", end="")
                 
-                print(f"\n[+] Sent {total} messages to {len(text_channels)} rooms!")
+                print(f"\n\n[+] Done! Sent: {total}, Failed: {failed}")
             else:
-                print("[-] Failed to fetch channels!")
-        except:
-            print("[-] Error!")
+                print(f"[-] Failed to fetch channels! Status: {r.status_code}")
+        except Exception as e:
+            print(f"[-] Error: {str(e)}")
         input("\nPress Enter to continue...")
     
-    # ============== GIVE ADMIN ==============
+    # =============================================
+    # 7- GIVE ADMIN
+    # =============================================
     elif choice == "7":
         os.system('cls' if os.name == 'nt' else 'clear')
         print("\n[+] GIVE ADMIN")
-        print("-"*50)
+        print("-"*60)
         
         user_id = input("[?] User ID to promote: ").strip()
         if not user_id:
@@ -409,14 +481,20 @@ while True:
                 if r2.status_code in [200, 204]:
                     print(f"[+] User {user_id} is now admin!")
                 else:
-                    print("[-] Role created but failed to assign!")
+                    print(f"[-] Role created but failed to assign! Status: {r2.status_code}")
+                    if r2.status_code == 403:
+                        print("[-] Bot can't assign role! Check role hierarchy.")
             else:
-                print("[-] Failed to create role!")
-        except:
-            print("[-] Error!")
+                print(f"[-] Failed to create role! Status: {r.status_code}")
+                if r.status_code == 403:
+                    print("[-] Bot doesn't have permission to create roles!")
+        except Exception as e:
+            print(f"[-] Error: {str(e)}")
         input("\nPress Enter to continue...")
     
-    # ============== EXIT ==============
+    # =============================================
+    # 0- EXIT
+    # =============================================
     elif choice == "0":
         print("\n[+] Goodbye!")
         break
