@@ -1,762 +1,426 @@
-
-import os
-import sys
+import requests
 import json
+import os
 import time
 import random
-import asyncio
-import aiohttp
-from colorama import init, Fore, Style
 
-init(autoreset=True)
+os.system('cls' if os.name == 'nt' else 'clear')
 
-class _3zFTool:
-    def __init__(self):
-        self.bot_token = ""
-        self.selected_guild_id = ""
-        self.guilds = {}
-        self.base_url = "https://discord.com/api/v10"
-        self.session = None
-        self.loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(self.loop)
+print("""
+██████╗ ███████╗███████╗
+╚════██╗╚══███╔╝██╔════╝
+ █████╔╝  ███╔╝ █████╗
+ ╚═══██╗ ███╔╝  ██╔══╝
+██████╔╝███████╗██║
+╚═════╝ ╚══════╝╚═╝
+""")
+print("="*50)
+print("        3zF TOOL v2.0 | BY 3Z")
+print("="*50)
+print()
+
+# ============== GET TOKEN ==============
+print("[?] Enter Bot Token: ", end="")
+TOKEN = input().strip()
+
+headers = {
+    "Authorization": f"Bot {TOKEN}",
+    "User-Agent": "Mozilla/5.0"
+}
+
+# ============== TEST TOKEN ==============
+print("\n[*] Testing Token...")
+try:
+    r = requests.get("https://discord.com/api/v10/users/@me", headers=headers)
+    if r.status_code == 200:
+        user = r.json()
+        print(f"[+] Connected as: {user['username']}")
+    else:
+        print(f"[-] Invalid Token! Status: {r.status_code}")
+        exit()
+except:
+    print("[-] Connection Error!")
+    exit()
+
+# ============== GET SERVERS ==============
+print("\n[*] Fetching Servers...")
+try:
+    r = requests.get("https://discord.com/api/v10/users/@me/guilds", headers=headers)
+    if r.status_code == 200:
+        guilds = r.json()
+        if len(guilds) == 0:
+            print("[-] No servers found! Make sure bot is in a server.")
+            exit()
         
-    def clear_screen(self):
+        print("\n[+] Available Servers:")
+        print("-"*50)
+        server_list = {}
+        for i, g in enumerate(guilds, 1):
+            print(f"  [{i}] {g['name']} (ID: {g['id']})")
+            server_list[str(i)] = g['id']
+        print("-"*50)
+        
+        print("\n[?] Select Server Number: ", end="")
+        choice = input().strip()
+        
+        if choice not in server_list:
+            print("[-] Invalid choice!")
+            exit()
+        
+        GUILD_ID = server_list[choice]
+        print(f"[+] Selected Server ID: {GUILD_ID}")
+        print("\n[+] Press Enter to continue...")
+        input()
+    else:
+        print(f"[-] Failed! Status: {r.status_code}")
+        exit()
+except:
+    print("[-] Connection Error!")
+    exit()
+
+# ============== MAIN MENU ==============
+while True:
+    os.system('cls' if os.name == 'nt' else 'clear')
+    
+    print("""
+██████╗ ███████╗███████╗
+╚════██╗╚══███╔╝██╔════╝
+ █████╔╝  ███╔╝ █████╗
+ ╚═══██╗ ███╔╝  ██╔══╝
+██████╔╝███████╗██║
+╚═════╝ ╚══════╝╚═╝
+""")
+    print("="*50)
+    print("        3zF TOOL v2.0 | BY 3Z")
+    print("="*50)
+    print(f"Server ID: {GUILD_ID}")
+    print("-"*50)
+    print("  [1] Create Rooms")
+    print("  [2] Delete Rooms")
+    print("  [3] Delete Roles")
+    print("  [4] Ban User")
+    print("  [5] Kick User")
+    print("  [6] Spam Rooms")
+    print("  [7] Give Admin")
+    print("  [0] Exit")
+    print("-"*50)
+    
+    choice = input("[?] Choose Option: ").strip()
+    
+    # ============== CREATE ROOMS ==============
+    if choice == "1":
         os.system('cls' if os.name == 'nt' else 'clear')
-    
-    def center_text(self, text):
-        width = 100
-        padding = (width - len(text)) // 2
-        if padding < 0:
-            padding = 0
-        print(" " * padding + text)
-    
-    def center_logo(self):
-        logo = [
-            "██████╗ ███████╗███████╗",
-            "╚════██╗╚══███╔╝██╔════╝",
-            " █████╔╝  ███╔╝ █████╗",
-            " ╚═══██╗ ███╔╝  ██╔══╝",
-            "██████╔╝███████╗██║",
-            "╚═════╝ ╚══════╝╚═╝"
-        ]
-        print()
-        for line in logo:
-            print(Fore.CYAN + " " * 38 + line)
-        print()
-        self.center_text(Fore.YELLOW + "══════════════════════════════════════════════════════════════")
-        self.center_text(Fore.MAGENTA + "                 3zF TOOL v2.0 | BY 3Z")
-        self.center_text(Fore.YELLOW + "══════════════════════════════════════════════════════════════")
-        print()
-    
-    def print_success(self, msg):
-        self.center_text(Fore.GREEN + "[✓] " + msg)
-    
-    def print_error(self, msg):
-        self.center_text(Fore.RED + "[✗] " + msg)
-    
-    def print_info(self, msg):
-        self.center_text(Fore.CYAN + "[*] " + msg)
-    
-    def print_warning(self, msg):
-        self.center_text(Fore.YELLOW + "[!] " + msg)
-    
-    def print_working(self):
-        self.center_text(Fore.YELLOW + "[~] WORKING... PLEASE WAIT")
-    
-    def get_multiple_inputs_with_count(self, prompt, done_word="done"):
-        items = []
-        print()
-        self.center_text(Fore.CYAN + prompt)
-        self.center_text(Fore.CYAN + f"Type '{done_word}' when finished")
-        print()
+        print("\n[+] CREATE ROOMS")
+        print("-"*50)
         
-        counter = 1
+        rooms = []
+        print("[?] Enter room names (type 'done' to finish):")
         while True:
-            try:
-                print(Fore.GREEN + " " * 38 + f"{counter}. ", end="")
-                user_input = input()
-                
-                if not user_input.strip():
-                    continue
-                
-                if user_input.lower() == done_word.lower():
-                    break
-                
-                items.append(user_input)
-                counter += 1
-            except KeyboardInterrupt:
-                print()
-                return items
-            except:
-                continue
+            name = input(f"  Room {len(rooms)+1}: ").strip()
+            if name.lower() == "done":
+                break
+            if name:
+                rooms.append(name)
         
-        print()
+        if not rooms:
+            print("[-] No rooms entered!")
+            input("\nPress Enter to continue...")
+            continue
+        
+        print(f"\n[?] How many copies of each room? ", end="")
         try:
-            print(Fore.CYAN + " " * 38 + "Repeat count for each item: ", end="")
-            repeat = int(input().strip())
-            if repeat <= 0:
-                repeat = 1
+            copies = int(input().strip())
+            if copies <= 0:
+                copies = 1
         except:
-            repeat = 1
+            copies = 1
         
-        final_items = []
-        for item in items:
-            for _ in range(repeat):
-                final_items.append(item)
+        final_rooms = []
+        for room in rooms:
+            for i in range(copies):
+                final_rooms.append(f"{room}-{i+1}" if copies > 1 else room)
         
-        self.print_info(f"Total items to process: {len(final_items)}")
-        return final_items
-    
-    async def get_session(self):
-        try:
-            if self.session is None or self.session.closed:
-                connector = aiohttp.TCPConnector(
-                    limit=100,
-                    limit_per_host=100,
-                    ttl_dns_cache=300,
-                    force_close=False
+        print(f"\n[*] Creating {len(final_rooms)} rooms...")
+        
+        success = 0
+        for i, room in enumerate(final_rooms):
+            data = {"name": room, "type": 0}
+            try:
+                r = requests.post(
+                    f"https://discord.com/api/v10/guilds/{GUILD_ID}/channels",
+                    headers=headers,
+                    json=data
                 )
-                timeout = aiohttp.ClientTimeout(total=30, connect=15)
-                self.session = aiohttp.ClientSession(connector=connector, timeout=timeout)
-            return self.session
-        except:
-            self.session = None
-            connector = aiohttp.TCPConnector(limit=100, limit_per_host=100)
-            timeout = aiohttp.ClientTimeout(total=30, connect=15)
-            self.session = aiohttp.ClientSession(connector=connector, timeout=timeout)
-            return self.session
-    
-    async def api_request(self, method, endpoint, json_data=None, retries=3):
-        try:
-            session = await self.get_session()
-            url = f"{self.base_url}{endpoint}"
-            
-            headers = {
-                "Authorization": f"Bot {self.bot_token}",
-                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-                "Content-Type": "application/json"
-            }
-            
-            for attempt in range(retries):
-                try:
-                    async with session.request(method, url, headers=headers, json=json_data) as response:
-                        if response.status == 429:
-                            try:
-                                data = await response.json()
-                                retry_after = data.get('retry_after', 2)
-                                await asyncio.sleep(retry_after + 1)
-                                continue
-                            except:
-                                await asyncio.sleep(3)
-                                continue
-                        
-                        if response.status == 403:
-                            self.print_error("Bot doesn't have permission!")
-                            return None
-                        
-                        if response.status == 401:
-                            self.print_error("Invalid Token!")
-                            return None
-                        
-                        if response.status >= 500:
-                            await asyncio.sleep(2 * (attempt + 1))
-                            continue
-                        
-                        return response
-                        
-                except aiohttp.ClientError:
-                    if attempt < retries - 1:
-                        await asyncio.sleep(2 * (attempt + 1))
-                        continue
-                    else:
-                        return None
-                except asyncio.TimeoutError:
-                    if attempt < retries - 1:
-                        await asyncio.sleep(2 * (attempt + 1))
-                        continue
-                    else:
-                        return None
-                except:
-                    if attempt < retries - 1:
-                        await asyncio.sleep(2 * (attempt + 1))
-                        continue
-                    else:
-                        return None
-            
-            return None
-            
-        except:
-            return None
-    
-    async def get_token(self):
-        self.clear_screen()
-        self.center_logo()
-        print()
-        self.center_text(Fore.CYAN + "══════════════════════════════════════════════════════════════")
-        self.center_text(Fore.CYAN + "                    ENTER BOT TOKEN")
-        self.center_text(Fore.CYAN + "══════════════════════════════════════════════════════════════")
-        print()
-        self.center_text(Fore.YELLOW + "Paste your Bot Token and press Enter")
-        print()
-        print(Fore.GREEN + " " * 38 + ">>> ", end="")
-        self.bot_token = input().strip()
-        
-        if not self.bot_token:
-            self.print_error("Token cannot be empty!")
-            print()
-            self.center_text(Fore.YELLOW + "Press any key to try again...")
-            input()
-            await self.get_token()
-            return
-        
-        await self.test_token()
-    
-    async def test_token(self):
-        self.clear_screen()
-        self.center_logo()
-        self.print_working()
-        print()
-        
-        try:
-            response = await self.api_request("GET", "/users/@me")
-            
-            if response and response.status == 200:
-                try:
-                    user_data = await response.json()
-                    self.print_success(f"Bot Connected: {user_data.get('username', 'Unknown')}")
-                except:
-                    self.print_success("Bot Connected Successfully!")
-                print()
-                self.center_text(Fore.YELLOW + "Press any key to continue...")
-                input()
-            else:
-                self.print_error("Invalid Token or Network Error!")
-                print()
-                self.center_text(Fore.YELLOW + "Press any key to try again...")
-                input()
-                await self.get_token()
-        except:
-            self.print_error("Connection Error!")
-            print()
-            self.center_text(Fore.YELLOW + "Press any key to try again...")
-            input()
-            await self.get_token()
-    
-    async def get_guilds(self):
-        self.clear_screen()
-        self.center_logo()
-        print()
-        self.center_text(Fore.CYAN + "══════════════════════════════════════════════════════════════")
-        self.center_text(Fore.CYAN + "                    FETCHING SERVERS")
-        self.center_text(Fore.CYAN + "══════════════════════════════════════════════════════════════")
-        print()
-        
-        try:
-            response = await self.api_request("GET", "/users/@me/guilds")
-            
-            if response and response.status == 200:
-                try:
-                    guilds_data = await response.json()
-                    self.guilds = {}
-                    
-                    self.center_text(Fore.MAGENTA + "══════════════════════════════════════════════════════════════")
-                    self.center_text(Fore.MAGENTA + "                    AVAILABLE SERVERS")
-                    self.center_text(Fore.MAGENTA + "══════════════════════════════════════════════════════════════")
-                    print()
-                    
-                    for index, guild in enumerate(guilds_data, start=1):
-                        guild_id = guild.get("id", "")
-                        guild_name = guild.get("name", "Unknown")
-                        self.guilds[str(index)] = guild_id
-                        self.center_text(Fore.GREEN + f"[{index}] {guild_name} (ID: {guild_id})")
-                    
-                    if not self.guilds:
-                        self.print_error("No servers found!")
-                        input()
-                        sys.exit(0)
-                    
-                    print()
-                    self.center_text(Fore.YELLOW + "══════════════════════════════════════════════════════════════")
-                    self.center_text(Fore.YELLOW + "        Enter number to select server")
-                    self.center_text(Fore.YELLOW + "══════════════════════════════════════════════════════════════")
-                    print()
-                except:
-                    self.print_error("Error parsing server data!")
-                    input()
-                    sys.exit(0)
-            else:
-                self.print_error("Failed to fetch servers!")
-                input()
-                sys.exit(0)
-        except:
-            self.print_error("Connection Error!")
-            input()
-            sys.exit(0)
-    
-    async def select_guild(self):
-        while True:
-            try:
-                print(Fore.GREEN + " " * 38 + ">>> Select Server: ", end="")
-                choice = input().strip()
-                
-                if choice in self.guilds:
-                    self.selected_guild_id = self.guilds[choice]
-                    self.clear_screen()
-                    self.center_logo()
-                    self.print_success("Server Selected Successfully!")
-                    print()
-                    self.print_info(f"Server ID: {self.selected_guild_id}")
-                    print()
-                    self.center_text(Fore.YELLOW + "Press any key to continue...")
-                    input()
-                    return
+                if r.status_code in [200, 201]:
+                    success += 1
                 else:
-                    self.print_error("Invalid choice! Try again.")
-                    print()
-            except KeyboardInterrupt:
-                print()
-                sys.exit(0)
+                    pass
             except:
-                continue
+                pass
+            print(f"\r[+] Created: {success}/{len(final_rooms)}", end="")
+        
+        print(f"\n[+] Created {success} rooms!")
+        input("\nPress Enter to continue...")
     
-    async def main_menu(self):
-        while True:
-            try:
-                self.clear_screen()
-                self.center_logo()
-                
-                self.center_text(Fore.CYAN + "══════════════════════════════════════════════════════════════")
-                self.center_text(Fore.CYAN + "                       MAIN MENU")
-                self.center_text(Fore.CYAN + "══════════════════════════════════════════════════════════════")
-                print()
-                
-                menu = [
-                    "  [1]  Create Rooms",
-                    "  [2]  Delete Rooms",
-                    "  [3]  Delete Roles",
-                    "  [4]  Ban User",
-                    "  [5]  Kick User",
-                    "  [6]  Spam Rooms",
-                    "  [7]  Give Admin",
-                    "  [0]  Exit"
-                ]
-                
-                for item in menu:
-                    self.center_text(Fore.YELLOW + item)
-                
-                print()
-                self.center_text(Fore.GREEN + f"Server ID: {self.selected_guild_id}")
-                print()
-                print(Fore.CYAN + " " * 38 + ">>> Choose Option: ", end="")
-                choice = input().strip()
-                
-                if choice == "1":
-                    await self.create_rooms()
-                elif choice == "2":
-                    await self.delete_rooms()
-                elif choice == "3":
-                    await self.delete_roles()
-                elif choice == "4":
-                    await self.ban_user()
-                elif choice == "5":
-                    await self.kick_user()
-                elif choice == "6":
-                    await self.spam_rooms()
-                elif choice == "7":
-                    await self.give_admin()
-                elif choice == "0":
-                    self.print_info("Goodbye!")
-                    sys.exit(0)
-                else:
-                    self.print_error("Invalid option!")
-                    time.sleep(1)
-            except KeyboardInterrupt:
-                print()
-                self.print_info("Exiting...")
-                sys.exit(0)
-            except:
-                continue
-    
-    async def create_rooms(self):
+    # ============== DELETE ROOMS ==============
+    elif choice == "2":
+        os.system('cls' if os.name == 'nt' else 'clear')
+        print("\n[+] DELETE ROOMS")
+        print("-"*50)
+        
+        print("[*] Fetching channels...")
         try:
-            self.clear_screen()
-            self.center_logo()
-            self.center_text(Fore.GREEN + "══════════════════════════════════════════════════════════════")
-            self.center_text(Fore.GREEN + "                      CREATE ROOMS")
-            self.center_text(Fore.GREEN + "══════════════════════════════════════════════════════════════")
-            
-            room_names = self.get_multiple_inputs_with_count("Enter room names (one per line):")
-            
-            if len(room_names) == 0:
-                self.print_error("No room names entered!")
-                input()
-                return
-            
-            print()
-            self.print_info(f"Creating {len(room_names)} rooms...")
-            print()
-            
-            success = 0
-            failed = 0
-            
-            for i, room_name in enumerate(room_names):
-                try:
-                    data = {"name": room_name, "type": 0}
-                    response = await self.api_request("POST", f"/guilds/{self.selected_guild_id}/channels", json_data=data)
-                    
-                    if response and response.status in [200, 201]:
-                        success += 1
-                    else:
-                        failed += 1
-                except:
-                    failed += 1
-                
-                print(f"\r{Fore.GREEN}[✓] Created: {success}  |  {Fore.RED}[✗] Failed: {failed}{Style.RESET_ALL}", end="")
-            
-            print()
-            self.print_success(f"Created: {success} rooms")
-            if failed > 0:
-                self.print_info(f"Failed: {failed} rooms")
-            input()
-        except:
-            self.print_error("Error creating rooms!")
-            input()
-    
-    async def delete_rooms(self):
-        try:
-            self.clear_screen()
-            self.center_logo()
-            self.center_text(Fore.RED + "══════════════════════════════════════════════════════════════")
-            self.center_text(Fore.RED + "                      DELETE ROOMS")
-            self.center_text(Fore.RED + "══════════════════════════════════════════════════════════════")
-            print()
-            
-            self.print_info("Fetching channels...")
-            print()
-            
-            response = await self.api_request("GET", f"/guilds/{self.selected_guild_id}/channels")
-            
-            if response and response.status == 200:
-                channels = await response.json()
-                channel_ids = []
-                
-                for channel in channels:
-                    if channel.get("type") in [0, 2]:
-                        channel_ids.append(channel.get("id"))
+            r = requests.get(f"https://discord.com/api/v10/guilds/{GUILD_ID}/channels", headers=headers)
+            if r.status_code == 200:
+                channels = r.json()
+                channel_ids = [c['id'] for c in channels if c['type'] in [0, 2]]
                 
                 if not channel_ids:
-                    self.print_error("No channels found!")
-                    input()
-                    return
+                    print("[-] No channels found!")
+                    input("\nPress Enter to continue...")
+                    continue
                 
-                self.print_info(f"Found {len(channel_ids)} channels")
-                print()
-                
-                print(Fore.YELLOW + " " * 38 + f"Delete {len(channel_ids)} channels? (yes/no): ", end="")
+                print(f"[*] Found {len(channel_ids)} channels")
+                print(f"[?] Delete all {len(channel_ids)} channels? (yes/no): ", end="")
                 confirm = input().strip().lower()
                 
-                if confirm != 'yes':
-                    self.print_info("Cancelled.")
-                    input()
-                    return
+                if confirm != "yes":
+                    print("[-] Cancelled!")
+                    input("\nPress Enter to continue...")
+                    continue
                 
                 success = 0
-                failed = 0
-                
-                for cid in channel_ids:
+                for i, cid in enumerate(channel_ids):
                     try:
-                        response = await self.api_request("DELETE", f"/channels/{cid}")
-                        if response and response.status in [200, 204]:
+                        r = requests.delete(f"https://discord.com/api/v10/channels/{cid}", headers=headers)
+                        if r.status_code in [200, 204]:
                             success += 1
-                        else:
-                            failed += 1
                     except:
-                        failed += 1
-                    
-                    print(f"\r{Fore.GREEN}[✓] Deleted: {success}  |  {Fore.RED}[✗] Failed: {failed}{Style.RESET_ALL}", end="")
+                        pass
+                    print(f"\r[+] Deleted: {success}/{len(channel_ids)}", end="")
                 
-                print()
-                self.print_success(f"Deleted: {success} rooms")
-                if failed > 0:
-                    self.print_info(f"Failed: {failed} rooms")
+                print(f"\n[+] Deleted {success} channels!")
             else:
-                self.print_error("Failed to fetch channels!")
-            input()
+                print("[-] Failed to fetch channels!")
         except:
-            self.print_error("Error deleting rooms!")
-            input()
+            print("[-] Error!")
+        input("\nPress Enter to continue...")
     
-    async def delete_roles(self):
+    # ============== DELETE ROLES ==============
+    elif choice == "3":
+        os.system('cls' if os.name == 'nt' else 'clear')
+        print("\n[+] DELETE ROLES")
+        print("-"*50)
+        
+        print("[*] Fetching roles...")
         try:
-            self.clear_screen()
-            self.center_logo()
-            self.center_text(Fore.RED + "══════════════════════════════════════════════════════════════")
-            self.center_text(Fore.RED + "                       DELETE ROLES")
-            self.center_text(Fore.RED + "══════════════════════════════════════════════════════════════")
-            print()
-            
-            self.print_info("Fetching roles...")
-            print()
-            
-            response = await self.api_request("GET", f"/guilds/{self.selected_guild_id}/roles")
-            
-            if response and response.status == 200:
-                roles = await response.json()
-                role_ids = []
-                
-                for role in roles:
-                    if role.get("id") != self.selected_guild_id:
-                        role_ids.append(role.get("id"))
+            r = requests.get(f"https://discord.com/api/v10/guilds/{GUILD_ID}/roles", headers=headers)
+            if r.status_code == 200:
+                roles = r.json()
+                role_ids = [r['id'] for r in roles if r['id'] != GUILD_ID]
                 
                 if not role_ids:
-                    self.print_error("No roles found!")
-                    input()
-                    return
+                    print("[-] No roles found!")
+                    input("\nPress Enter to continue...")
+                    continue
                 
-                self.print_info(f"Found {len(role_ids)} roles")
-                print()
-                
-                print(Fore.YELLOW + " " * 38 + f"Delete {len(role_ids)} roles? (yes/no): ", end="")
+                print(f"[*] Found {len(role_ids)} roles")
+                print(f"[?] Delete all {len(role_ids)} roles? (yes/no): ", end="")
                 confirm = input().strip().lower()
                 
-                if confirm != 'yes':
-                    self.print_info("Cancelled.")
-                    input()
-                    return
+                if confirm != "yes":
+                    print("[-] Cancelled!")
+                    input("\nPress Enter to continue...")
+                    continue
                 
                 success = 0
-                failed = 0
-                
-                for rid in role_ids:
+                for i, rid in enumerate(role_ids):
                     try:
-                        response = await self.api_request("DELETE", f"/guilds/{self.selected_guild_id}/roles/{rid}")
-                        if response and response.status in [200, 204]:
+                        r = requests.delete(f"https://discord.com/api/v10/guilds/{GUILD_ID}/roles/{rid}", headers=headers)
+                        if r.status_code in [200, 204]:
                             success += 1
-                        else:
-                            failed += 1
                     except:
-                        failed += 1
-                    
-                    print(f"\r{Fore.GREEN}[✓] Deleted: {success}  |  {Fore.RED}[✗] Failed: {failed}{Style.RESET_ALL}", end="")
+                        pass
+                    print(f"\r[+] Deleted: {success}/{len(role_ids)}", end="")
                 
-                print()
-                self.print_success(f"Deleted: {success} roles")
-                if failed > 0:
-                    self.print_info(f"Failed: {failed} roles")
+                print(f"\n[+] Deleted {success} roles!")
             else:
-                self.print_error("Failed to fetch roles!")
-            input()
+                print("[-] Failed to fetch roles!")
         except:
-            self.print_error("Error deleting roles!")
-            input()
+            print("[-] Error!")
+        input("\nPress Enter to continue...")
     
-    async def ban_user(self):
+    # ============== BAN USER ==============
+    elif choice == "4":
+        os.system('cls' if os.name == 'nt' else 'clear')
+        print("\n[+] BAN USER")
+        print("-"*50)
+        
+        user_id = input("[?] User ID to ban: ").strip()
+        if not user_id:
+            print("[-] User ID required!")
+            input("\nPress Enter to continue...")
+            continue
+        
         try:
-            self.clear_screen()
-            self.center_logo()
-            self.center_text(Fore.RED + "══════════════════════════════════════════════════════════════")
-            self.center_text(Fore.RED + "                        BAN USER")
-            self.center_text(Fore.RED + "══════════════════════════════════════════════════════════════")
-            print()
-            
-            print(Fore.CYAN + " " * 38 + ">>> User ID to ban: ", end="")
-            user_id = input().strip()
-            
-            if not user_id:
-                self.print_error("User ID cannot be empty!")
-                input()
-                return
-            
-            print()
-            self.print_info(f"Banning user: {user_id}")
-            print()
-            
             data = {"delete_message_days": 7}
-            response = await self.api_request("PUT", f"/guilds/{self.selected_guild_id}/bans/{user_id}", json_data=data)
-            
-            if response and response.status in [200, 204]:
-                self.print_success(f"User {user_id} banned!")
+            r = requests.put(
+                f"https://discord.com/api/v10/guilds/{GUILD_ID}/bans/{user_id}",
+                headers=headers,
+                json=data
+            )
+            if r.status_code in [200, 204]:
+                print(f"[+] User {user_id} banned!")
             else:
-                self.print_error(f"Failed to ban user!")
-            input()
+                print(f"[-] Failed! Status: {r.status_code}")
         except:
-            self.print_error("Error banning user!")
-            input()
+            print("[-] Error!")
+        input("\nPress Enter to continue...")
     
-    async def kick_user(self):
+    # ============== KICK USER ==============
+    elif choice == "5":
+        os.system('cls' if os.name == 'nt' else 'clear')
+        print("\n[+] KICK USER")
+        print("-"*50)
+        
+        user_id = input("[?] User ID to kick: ").strip()
+        if not user_id:
+            print("[-] User ID required!")
+            input("\nPress Enter to continue...")
+            continue
+        
         try:
-            self.clear_screen()
-            self.center_logo()
-            self.center_text(Fore.YELLOW + "══════════════════════════════════════════════════════════════")
-            self.center_text(Fore.YELLOW + "                        KICK USER")
-            self.center_text(Fore.YELLOW + "══════════════════════════════════════════════════════════════")
-            print()
-            
-            print(Fore.CYAN + " " * 38 + ">>> User ID to kick: ", end="")
-            user_id = input().strip()
-            
-            if not user_id:
-                self.print_error("User ID cannot be empty!")
-                input()
-                return
-            
-            print()
-            self.print_info(f"Kicking user: {user_id}")
-            print()
-            
-            response = await self.api_request("DELETE", f"/guilds/{self.selected_guild_id}/members/{user_id}")
-            
-            if response and response.status in [200, 204]:
-                self.print_success(f"User {user_id} kicked!")
+            r = requests.delete(
+                f"https://discord.com/api/v10/guilds/{GUILD_ID}/members/{user_id}",
+                headers=headers
+            )
+            if r.status_code in [200, 204]:
+                print(f"[+] User {user_id} kicked!")
             else:
-                self.print_error(f"Failed to kick user!")
-            input()
+                print(f"[-] Failed! Status: {r.status_code}")
         except:
-            self.print_error("Error kicking user!")
-            input()
+            print("[-] Error!")
+        input("\nPress Enter to continue...")
     
-    async def spam_rooms(self):
+    # ============== SPAM ROOMS ==============
+    elif choice == "6":
+        os.system('cls' if os.name == 'nt' else 'clear')
+        print("\n[+] SPAM ROOMS")
+        print("-"*50)
+        
+        messages = []
+        print("[?] Enter messages (type 'done' to finish):")
+        while True:
+            msg = input(f"  Message {len(messages)+1}: ").strip()
+            if msg.lower() == "done":
+                break
+            if msg:
+                messages.append(msg)
+        
+        if not messages:
+            print("[-] No messages entered!")
+            input("\nPress Enter to continue...")
+            continue
+        
+        print(f"\n[?] How many times per room? ", end="")
         try:
-            self.clear_screen()
-            self.center_logo()
-            self.center_text(Fore.CYAN + "══════════════════════════════════════════════════════════════")
-            self.center_text(Fore.CYAN + "                       SPAM ROOMS")
-            self.center_text(Fore.CYAN + "══════════════════════════════════════════════════════════════")
-            
-            spam_messages = self.get_multiple_inputs_with_count("Enter spam messages (one per line):")
-            
-            if len(spam_messages) == 0:
-                self.print_error("No messages entered!")
-                input()
-                return
-            
-            print()
-            self.print_info("Fetching text channels...")
-            print()
-            
-            response = await self.api_request("GET", f"/guilds/{self.selected_guild_id}/channels")
-            
-            if response and response.status == 200:
-                channels = await response.json()
-                text_channel_ids = []
+            per_room = int(input().strip())
+            if per_room <= 0:
+                per_room = 1
+        except:
+            per_room = 1
+        
+        print("\n[*] Fetching text channels...")
+        try:
+            r = requests.get(f"https://discord.com/api/v10/guilds/{GUILD_ID}/channels", headers=headers)
+            if r.status_code == 200:
+                channels = r.json()
+                text_channels = [c['id'] for c in channels if c['type'] == 0]
                 
-                for channel in channels:
-                    if channel.get("type") == 0:
-                        text_channel_ids.append(channel.get("id"))
+                if not text_channels:
+                    print("[-] No text channels found!")
+                    input("\nPress Enter to continue...")
+                    continue
                 
-                if not text_channel_ids:
-                    self.print_error("No text channels found!")
-                    input()
-                    return
+                print(f"[*] Found {len(text_channels)} text channels")
+                print("[*] Spamming...")
                 
-                self.print_info(f"Found {len(text_channel_ids)} text channels")
-                print()
-                
-                total_sent = 0
-                
-                for cid in text_channel_ids:
-                    for msg in spam_messages:
+                total = 0
+                for cid in text_channels:
+                    for _ in range(per_room):
+                        msg = random.choice(messages)
                         try:
                             data = {"content": msg}
-                            response = await self.api_request("POST", f"/channels/{cid}/messages", json_data=data)
-                            if response and response.status in [200, 201]:
-                                total_sent += 1
+                            r = requests.post(
+                                f"https://discord.com/api/v10/channels/{cid}/messages",
+                                headers=headers,
+                                json=data
+                            )
+                            if r.status_code in [200, 201]:
+                                total += 1
                         except:
                             pass
-                        
-                        print(f"\r{Fore.GREEN}[✓] Sent: {total_sent} messages{Style.RESET_ALL}", end="")
+                        print(f"\r[+] Sent: {total} messages", end="")
                 
-                print()
-                self.print_success(f"Sent: {total_sent} messages to {len(text_channel_ids)} rooms!")
+                print(f"\n[+] Sent {total} messages to {len(text_channels)} rooms!")
             else:
-                self.print_error("Failed to fetch channels!")
-            input()
+                print("[-] Failed to fetch channels!")
         except:
-            self.print_error("Error spamming rooms!")
-            input()
+            print("[-] Error!")
+        input("\nPress Enter to continue...")
     
-    async def give_admin(self):
+    # ============== GIVE ADMIN ==============
+    elif choice == "7":
+        os.system('cls' if os.name == 'nt' else 'clear')
+        print("\n[+] GIVE ADMIN")
+        print("-"*50)
+        
+        user_id = input("[?] User ID to promote: ").strip()
+        if not user_id:
+            print("[-] User ID required!")
+            input("\nPress Enter to continue...")
+            continue
+        
+        print("[*] Creating admin role...")
         try:
-            self.clear_screen()
-            self.center_logo()
-            self.center_text(Fore.MAGENTA + "══════════════════════════════════════════════════════════════")
-            self.center_text(Fore.MAGENTA + "                       GIVE ADMIN")
-            self.center_text(Fore.MAGENTA + "══════════════════════════════════════════════════════════════")
-            print()
-            
-            print(Fore.CYAN + " " * 38 + ">>> User ID to promote: ", end="")
-            user_id = input().strip()
-            
-            if not user_id:
-                self.print_error("User ID cannot be empty!")
-                input()
-                return
-            
-            print()
-            self.print_info(f"Promoting user: {user_id}")
-            print()
-            
-            # Create role
             role_data = {
                 "name": "3zF-Admin",
                 "permissions": "1071698660929",
                 "color": 10053376,
-                "hoist": True,
-                "mentionable": False
+                "hoist": True
             }
-            
-            response = await self.api_request("POST", f"/guilds/{self.selected_guild_id}/roles", json_data=role_data)
-            
-            if response and response.status in [200, 201]:
-                role = await response.json()
-                role_id = role.get("id")
+            r = requests.post(
+                f"https://discord.com/api/v10/guilds/{GUILD_ID}/roles",
+                headers=headers,
+                json=role_data
+            )
+            if r.status_code in [200, 201]:
+                role = r.json()
+                role_id = role['id']
+                print(f"[+] Role created! ID: {role_id}")
                 
-                self.print_success(f"Role created! ID: {role_id}")
-                print()
-                
-                # Assign role
+                print("[*] Assigning role...")
                 assign_data = {"roles": [role_id]}
-                assign_response = await self.api_request("PATCH", f"/guilds/{self.selected_guild_id}/members/{user_id}", json_data=assign_data)
-                
-                if assign_response and assign_response.status in [200, 204]:
-                    self.print_success(f"User {user_id} is now admin!")
+                r2 = requests.patch(
+                    f"https://discord.com/api/v10/guilds/{GUILD_ID}/members/{user_id}",
+                    headers=headers,
+                    json=assign_data
+                )
+                if r2.status_code in [200, 204]:
+                    print(f"[+] User {user_id} is now admin!")
                 else:
-                    self.print_error("Role created but failed to assign!")
+                    print("[-] Role created but failed to assign!")
             else:
-                self.print_error("Failed to create role!")
-            input()
+                print("[-] Failed to create role!")
         except:
-            self.print_error("Error giving admin!")
-            input()
+            print("[-] Error!")
+        input("\nPress Enter to continue...")
     
-    async def run(self):
-        try:
-            await self.get_token()
-            await self.get_guilds()
-            await self.select_guild()
-            await self.main_menu()
-        except KeyboardInterrupt:
-            print()
-            self.print_info("Exiting...")
-            sys.exit(0)
-        except Exception as e:
-            self.print_error(f"Fatal Error: {str(e)}")
-            input()
-        finally:
-            if self.session:
-                await self.session.close()
-
-def main():
-    tool = _3zFTool()
-    try:
-        asyncio.run(tool.run())
-    except KeyboardInterrupt:
-        print()
-        print(Fore.CYAN + "[*] Goodbye!")
-        sys.exit(0)
-    except Exception as e:
-        print(Fore.RED + f"[-] Error: {str(e)}")
-        input()
-
-if __name__ == "__main__":
-    main()
+    # ============== EXIT ==============
+    elif choice == "0":
+        print("\n[+] Goodbye!")
+        break
+    
+    else:
+        print("[-] Invalid option!")
+        time.sleep(1)
